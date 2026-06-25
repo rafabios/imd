@@ -22,7 +22,7 @@ for package in ("yt_dlp", "spotdl", "spotipy", "mutagen", "librosa"):
 
 
 a = Analysis(
-    ["imd_launcher.py"],
+    [str(project_root / "imd_launcher.py")],
     pathex=[str(project_root)],
     binaries=[],
     datas=datas,
