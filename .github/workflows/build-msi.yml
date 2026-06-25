@@ -92,15 +92,60 @@ jobs:
             throw "WiX Toolset nao encontrado."
           }
           New-Item -ItemType Directory -Force build\wix | Out-Null
+          $msiPath = "dist\IMD-Insane-Music-Downloader-$env:PRODUCT_VERSION.msi"
           & "$wixBin\heat.exe" dir "dist\IMD" -cg AppFiles -dr INSTALLFOLDER -sreg -srd -gg -var var.SourceDir -out "packaging\harvest.wxs"
           & "$wixBin\candle.exe" -dSourceDir="$(Resolve-Path dist\IMD)" -dProductVersion="$env:PRODUCT_VERSION" -out "build\wix\\" "packaging\Product.wxs" "packaging\harvest.wxs"
-          & "$wixBin\light.exe" -out "dist\IMD-Insane-Music-Downloader-$env:PRODUCT_VERSION.msi" "build\wix\Product.wixobj" "build\wix\harvest.wixobj"
+          & "$wixBin\light.exe" `
+            -sval `
+            -out "$msiPath" `
+            "build\wix\Product.wixobj" `
+            "build\wix\harvest.wixobj"
+          if (!(Test-Path $msiPath)) {
+            throw "MSI nao foi gerado: $msiPath"
+          }
+          $msi = Get-Item $msiPath
+          if ($msi.Length -lt 1000000) {
+            throw "MSI gerado parece pequeno demais: $($msi.Length) bytes"
+          }
+          Write-Host "MSI gerado: $($msi.FullName) ($([math]::Round($msi.Length / 1MB, 2)) MB)"
+
+      - name: Smoke test MSI install
+        shell: pwsh
+        run: |
+          $msiPath = (Get-ChildItem dist\*.msi | Select-Object -First 1).FullName
+          $installLog = "$(Resolve-Path dist)\install.log"
+          $uninstallLog = "$(Resolve-Path dist)\uninstall.log"
+          $installedExe = Join-Path $env:LOCALAPPDATA "IMD Insane Music Downloader\IMD.exe"
+          $install = Start-Process msiexec.exe -ArgumentList @("/i", $msiPath, "/qn", "/norestart", "/L*v", $installLog) -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Instalacao MSI falhou com exit code $($install.ExitCode). Veja dist\install.log"
+          }
+          if (!(Test-Path $installedExe)) {
+            throw "IMD.exe nao encontrado apos instalar MSI: $installedExe"
+          }
+          $uninstall = Start-Process msiexec.exe -ArgumentList @("/x", $msiPath, "/qn", "/norestart", "/L*v", $uninstallLog) -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Desinstalacao MSI falhou com exit code $($uninstall.ExitCode). Veja dist\uninstall.log"
+          }
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
           name: IMD-Insane-Music-Downloader-MSI
+          if-no-files-found: error
           path: dist/*.msi
+
+      - name: Upload packaging diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMD-packaging-diagnostics
+          if-no-files-found: ignore
+          path: |
+            packaging/harvest.wxs
+            build/wix/
+            dist/install.log
+            dist/uninstall.log
 
       - name: Attach MSI to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
