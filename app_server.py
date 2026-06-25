@@ -32,10 +32,18 @@ def app_root_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def resource_root_dir() -> Path:
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        return Path(str(bundle_dir)).resolve()
+    return app_root_dir()
+
+
 ROOT_DIR = app_root_dir()
-WEB_DIR = ROOT_DIR / "web"
+RESOURCE_DIR = resource_root_dir()
+WEB_DIR = RESOURCE_DIR / "web"
 CONFIG_FILE = ROOT_DIR / "config.yaml"
-SAMPLE_CONFIG_FILE = ROOT_DIR / "config.sample.yaml"
+SAMPLE_CONFIG_FILE = RESOURCE_DIR / "config.sample.yaml"
 BACKUP_DIR = ROOT_DIR / "config_backups"
 SCRIPT_FILE = ROOT_DIR / "music_downloader.py"
 IMPORT_DIR = ROOT_DIR / "imports"

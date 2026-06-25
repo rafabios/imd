@@ -96,6 +96,12 @@ def test_worker_command_switches_when_packaged(monkeypatch):
     assert command == [r"C:\IMD\IMD.exe", "--worker", "--conversion-only"]
 
 
+def test_resource_root_uses_pyinstaller_meipass(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_server.sys, "_MEIPASS", str(tmp_path), raising=False)
+
+    assert app_server.resource_root_dir() == tmp_path.resolve()
+
+
 def test_start_conversion_task_reuses_running_task(monkeypatch):
     task = app_server.BackgroundTask(
         id="running-task",

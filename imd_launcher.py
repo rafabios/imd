@@ -13,17 +13,25 @@ def app_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def resource_dir() -> Path:
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        return Path(str(bundle_dir)).resolve()
+    return app_dir()
+
+
 def prepare_runtime(root: Path) -> None:
     os.chdir(root)
     os.environ.setdefault("PYTHONUTF8", "1")
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
-    ffmpeg_dir = root / "vendor" / "ffmpeg"
+    resources = resource_dir()
+    ffmpeg_dir = resources / "vendor" / "ffmpeg"
     if ffmpeg_dir.exists():
         os.environ["PATH"] = str(ffmpeg_dir) + os.pathsep + os.environ.get("PATH", "")
 
     config_file = root / "config.yaml"
-    sample_file = root / "config.sample.yaml"
+    sample_file = resources / "config.sample.yaml"
     if not config_file.exists() and sample_file.exists():
         shutil.copy2(sample_file, config_file)
 
