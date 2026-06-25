@@ -11,5 +11,5 @@ IMD-Insane-Music-Downloader-latest.msi
 Alternativa recomendada para releases publicas: troque o `href` do botao em `docs/index.html` para:
 
 ```txt
-https://github.com/SEU_USUARIO/SEU_REPOSITORIO/releases/latest
+https://github.com/rafabios/imd/releases/latest
 ```

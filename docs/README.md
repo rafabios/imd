@@ -21,8 +21,8 @@ imd.vemcompy.tec.br
 Troque estes links em `docs/index.html` pelo repositorio real:
 
 ```txt
-https://github.com/SEU_USUARIO/SEU_REPOSITORIO/releases/latest
-https://github.com/SEU_USUARIO/SEU_REPOSITORIO
+https://github.com/rafabios/imd/releases/latest
+https://github.com/rafabios/imd
 ```
 
 Depois que a primeira release com MSI existir, o botao de download vai mandar para o instalador mais recente.
