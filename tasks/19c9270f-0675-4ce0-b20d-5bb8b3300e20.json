@@ -1,0 +1,18 @@
+{
+  "id": "19c9270f-0675-4ce0-b20d-5bb8b3300e20",
+  "kind": "test",
+  "status": "succeeded",
+  "returncode": 0,
+  "started_at": "2026-06-24T21:47:24",
+  "finished_at": "2026-06-24T21:47:24",
+  "logs": [
+    "Iniciando tarefa: C:\\Program Files\\Python312\\python.exe -c print('hello from task')",
+    "hello from task"
+  ],
+  "progress": {},
+  "command": [
+    "C:\\Program Files\\Python312\\python.exe",
+    "-c",
+    "print('hello from task')"
+  ]
+}

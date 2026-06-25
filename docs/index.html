@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="IMD Insane Music Downloader: painel local para baixar, converter e organizar musicas a partir de listas e planilhas." />
+    <meta property="og:title" content="IMD Insane Music Downloader" />
+    <meta property="og:description" content="Um instalador simples para abrir um painel local de download, conversao e organizacao de musicas." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/assets/panel-preview.svg" />
+    <title>IMD Insane Music Downloader</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="IMD Insane Music Downloader">
+        <span class="brand-mark">IMD</span>
+        <span>
+          <strong>IMD</strong>
+          <small>Insane Music Downloader</small>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="Navegacao">
+        <a href="#features">Recursos</a>
+        <a href="#install">Instalar</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-cta" href="#download">Baixar</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <img class="hero-image" src="assets/panel-preview.svg" alt="Preview do painel local do IMD" />
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <p class="eyebrow">Painel local para Windows</p>
+          <h1>IMD Insane Music Downloader</h1>
+          <p class="hero-copy">
+            Baixe, converta, revise e organize musicas com uma interface simples no navegador, sem precisar mexer em terminal.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-button" href="#download">Baixar instalador MSI</a>
+            <a class="secondary-button" href="#install">Como instalar</a>
+          </div>
+          <p class="hero-note">Instala por usuario, abre em localhost e usa suas proprias configuracoes.</p>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Tudo no painel</p>
+          <h2>Feito para quem quer resultado, nao linha de comando</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon">01</span>
+            <h3>Planilhas e listas</h3>
+            <p>Carregue Google Sheets, TXT, CSV ou XLSX e veja tudo antes de iniciar o download.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">02</span>
+            <h3>Download guiado</h3>
+            <p>Rode downloads com reescan, modo teste, logs em tempo real e fila em background.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">03</span>
+            <h3>Conversao em lote</h3>
+            <p>Converta M4A, MP4, FLAC, WAV, OGG, OPUS e AAC para MP3 ou outros formatos.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">04</span>
+            <h3>Metadados</h3>
+            <p>Depois de baixar, o IMD pode preencher informacoes das faixas automaticamente.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="install" class="section install-section">
+        <div class="install-copy">
+          <p class="eyebrow">Instalacao</p>
+          <h2>Baixe, instale e abra pelo Menu Iniciar</h2>
+          <p>
+            O instalador MSI inclui o aplicativo e dependencias principais. Na primeira abertura, o IMD cria um arquivo de configuracao inicial para voce ajustar pelo proprio painel.
+          </p>
+        </div>
+        <ol class="step-list">
+          <li>
+            <strong>Baixe o MSI</strong>
+            <span>Use sempre a versao mais recente publicada no GitHub Releases.</span>
+          </li>
+          <li>
+            <strong>Instale no Windows</strong>
+            <span>O app fica no seu usuario e cria um atalho no Menu Iniciar.</span>
+          </li>
+          <li>
+            <strong>Configure suas pastas</strong>
+            <span>Abra o painel, ajuste a planilha, pasta de musicas e formato de audio.</span>
+          </li>
+        </ol>
+      </section>
+
+      <section id="download" class="section release-band">
+        <div>
+          <p class="eyebrow">Download</p>
+          <h2>Pronto para testar?</h2>
+          <p>Pegue a ultima versao, instale e abra o painel local pelo atalho do Windows.</p>
+        </div>
+        <a
+          class="primary-button"
+          href="downloads/IMD-Insane-Music-Downloader-latest.msi"
+          data-download-placeholder="Troque este href pelo MSI gerado no GitHub Actions ou publique o arquivo nesta pasta."
+        >
+          Baixar MSI
+        </a>
+        <p class="download-placeholder">
+          Placeholder do instalador: <code>docs/downloads/IMD-Insane-Music-Downloader-latest.msi</code>
+        </p>
+      </section>
+
+      <section id="faq" class="section faq-section">
+        <div class="section-heading">
+          <p class="eyebrow">Perguntas</p>
+          <h2>Antes de instalar</h2>
+        </div>
+        <div class="faq-grid">
+          <article>
+            <h3>O IMD roda na internet?</h3>
+            <p>Nao. Ele abre uma pagina local em <code>127.0.0.1</code>, dentro do seu computador.</p>
+          </article>
+          <article>
+            <h3>Preciso instalar Python?</h3>
+            <p>Nao. O instalador foi pensado para levar o app pronto para usar.</p>
+          </article>
+          <article>
+            <h3>Posso mudar as configuracoes?</h3>
+            <p>Sim. O painel tem configuracoes basicas e avancadas em uma tela propria.</p>
+          </article>
+          <article>
+            <h3>Existe alguma responsabilidade de uso?</h3>
+            <p>Use apenas com conteudos e direitos que voce pode acessar, baixar ou converter.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>IMD Insane Music Downloader</span>
+      <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO">Codigo no GitHub</a>
+    </footer>
+  </body>
+</html>

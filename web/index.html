@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IMD Insane Music Downloader</title>
+    <link rel="stylesheet" href="/styles.css?v=20260625-source1" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">IMD</span>
+          <div>
+            <strong>IMD</strong>
+            <small>Insane Music Downloader</small>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="Areas">
+          <a class="active" href="#dashboard">Visao geral</a>
+          <a href="#config">Configuracoes</a>
+          <a href="#conversion">Conversao</a>
+          <a href="#download">Download</a>
+          <a href="#sheets">Planilha</a>
+          <a href="#import">Importacao</a>
+          <a href="#tasks">Fila</a>
+          <a href="#environment">Ambiente</a>
+          <a href="#history">Historico</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Painel local</p>
+            <h1>IMD Insane Music Downloader</h1>
+            <p class="hero-copy">Baixe, converta, revise e organize sua biblioteca em um painel unico.</p>
+          </div>
+          <div id="health" class="status-pill">Carregando</div>
+        </header>
+
+        <section id="dashboard" class="section-grid">
+          <article class="panel summary-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Resumo</p>
+              <h2>Estado atual</h2>
+            </div>
+            <div id="summary" class="metric-grid"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Saude</p>
+              <h2>Configuracao</h2>
+            </div>
+            <ul id="validation" class="message-list"></ul>
+          </article>
+        </section>
+
+        <section id="config" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">Config.yaml</p>
+              <h2>Configuracoes</h2>
+            </div>
+            <div class="button-row">
+              <button id="reload-config" class="secondary-button" type="button">Atualizar</button>
+              <button id="save-config" class="primary-button" type="button">Salvar</button>
+            </div>
+          </div>
+          <div id="config-tabs" class="tab-row"></div>
+          <div id="danger-warning" class="danger-note"></div>
+          <div id="save-status" class="save-status" aria-live="polite"></div>
+          <form id="config-form" class="config-form"></form>
+        </section>
+
+        <section id="conversion" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">FFmpeg</p>
+              <h2>Conversao</h2>
+            </div>
+            <div class="button-row">
+              <button id="start-conversion" class="primary-button" type="button">Converter</button>
+              <button id="cancel-conversion" class="secondary-button" type="button" disabled>Parar</button>
+            </div>
+          </div>
+          <div class="conversion-status-grid">
+            <div class="metric">
+              <span>Status</span>
+              <strong id="conversion-status">Sem tarefa</strong>
+            </div>
+            <div class="metric">
+              <span>Inicio</span>
+              <strong id="conversion-started">Vazio</strong>
+            </div>
+            <div class="metric">
+              <span>Fim</span>
+              <strong id="conversion-finished">Vazio</strong>
+            </div>
+          </div>
+          <input id="conversion-log-filter" class="log-filter" type="search" placeholder="Filtrar log da conversao" />
+          <pre id="conversion-log" class="task-log">Nenhuma conversao iniciada nesta sessao.</pre>
+        </section>
+
+        <section id="sheets" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">Google Sheets</p>
+              <h2>Planilha</h2>
+            </div>
+            <div class="button-row">
+              <button id="load-sheet" class="primary-button" type="button">Carregar</button>
+              <button id="validate-sheet" class="secondary-button" type="button" disabled>Checar</button>
+              <button id="download-selected-sheet" class="secondary-button" type="button" disabled>Baixar selecionadas</button>
+            </div>
+          </div>
+          <div class="sheet-toolbar">
+            <input id="sheet-search" type="search" placeholder="Filtrar artista, musica, genero ou link" />
+            <select id="sheet-type-filter">
+              <option value="all">Todos</option>
+              <option value="playlist">Playlists</option>
+              <option value="artist">Artistas</option>
+              <option value="manual">Manuais</option>
+              <option value="empty">Vazios</option>
+            </select>
+          </div>
+          <div id="sheet-status" class="save-status"></div>
+          <div id="sheet-issues" class="issue-list"></div>
+          <div id="sheet-summary" class="metric-grid compact-metrics"></div>
+          <div class="table-wrap">
+            <table class="sheet-table">
+              <thead>
+                <tr>
+                  <th>Linha</th>
+                  <th></th>
+                  <th>Tipo</th>
+                  <th>Artista</th>
+                  <th>Musica</th>
+                  <th>Genero</th>
+                  <th>Spotify</th>
+                </tr>
+              </thead>
+              <tbody id="sheet-rows">
+                <tr>
+                  <td colspan="7">Carregue a planilha para visualizar.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="download" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">YT-DLP</p>
+              <h2>Download</h2>
+            </div>
+            <div class="button-row">
+              <button id="start-download" class="primary-button" type="button">Baixar</button>
+              <button id="cancel-download" class="secondary-button" type="button" disabled>Parar</button>
+            </div>
+          </div>
+          <div class="download-source-grid">
+            <label class="download-source-select">
+              <span>Origem do download</span>
+              <select id="download-source">
+                <option value="google_sheet">Planilha do Google</option>
+                <option value="import_file">Importar arquivo</option>
+                <option value="youtube_search">Procurar no YouTube</option>
+                <option value="spotify_search">Procurar no Spotify</option>
+                <option value="spotify_playlist">Playlist/artista do Spotify</option>
+              </select>
+            </label>
+            <div class="source-panel" data-download-source-panel="google_sheet">
+              <label>
+                <span>Linha especifica da planilha</span>
+                <input id="download-only-row" type="number" min="1" placeholder="ex: 12" />
+              </label>
+            </div>
+            <div class="source-panel" data-download-source-panel="import_file" hidden>
+              <p class="source-help">Use a area Importacao para escolher e visualizar o arquivo antes de baixar.</p>
+            </div>
+            <div class="source-panel manual-source-panel" data-download-source-panel="youtube_search" hidden>
+              <label>
+                <span>Artista</span>
+                <input id="download-youtube-artist" type="text" placeholder="ex: Blazy" />
+              </label>
+              <label>
+                <span>Musica</span>
+                <input id="download-youtube-title" type="text" placeholder="ex: Interlude" />
+              </label>
+              <label>
+                <span>Genero</span>
+                <input id="download-youtube-genre" type="text" placeholder="opcional" />
+              </label>
+            </div>
+            <div class="source-panel manual-source-panel" data-download-source-panel="spotify_search" hidden>
+              <label>
+                <span>Artista no Spotify</span>
+                <input id="download-spotify-artist" type="text" placeholder="ex: Oxyflux" />
+              </label>
+              <label>
+                <span>Musica no Spotify</span>
+                <input id="download-spotify-title" type="text" placeholder="ex: Metanoia" />
+              </label>
+              <label>
+                <span>Genero</span>
+                <input id="download-spotify-genre" type="text" placeholder="opcional" />
+              </label>
+            </div>
+            <div class="source-panel" data-download-source-panel="spotify_playlist" hidden>
+              <label>
+                <span>Link da playlist ou artista</span>
+                <input id="download-spotify-url" type="url" placeholder="https://open.spotify.com/playlist/..." />
+              </label>
+              <label>
+                <span>Genero</span>
+                <input id="download-spotify-url-genre" type="text" placeholder="opcional" />
+              </label>
+            </div>
+          </div>
+          <div class="download-options">
+            <label class="option-check">
+              <input id="download-reescan" type="checkbox" checked />
+              <span>Reescan playlists/artistas</span>
+            </label>
+            <label class="option-check">
+              <input id="download-dry-run" type="checkbox" />
+              <span>Modo teste</span>
+            </label>
+            <label class="option-check">
+              <input id="download-tagmusic" type="checkbox" />
+              <span>Preencher metadados</span>
+            </label>
+          </div>
+          <div class="conversion-status-grid">
+            <div class="metric">
+              <span>Status</span>
+              <strong id="download-status">Sem tarefa</strong>
+            </div>
+            <div class="metric">
+              <span>Inicio</span>
+              <strong id="download-started">Vazio</strong>
+            </div>
+            <div class="metric">
+              <span>Fim</span>
+              <strong id="download-finished">Vazio</strong>
+            </div>
+          </div>
+          <div id="download-progress" class="progress-line"></div>
+            <input id="download-log-filter" class="log-filter" type="search" placeholder="Filtrar log do download" />
+          <pre id="download-log" class="task-log">Nenhum download iniciado nesta sessao.</pre>
+        </section>
+
+        <section id="import" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">Arquivo local</p>
+              <h2>Importacao</h2>
+            </div>
+            <div class="button-row">
+              <button id="preview-import" class="primary-button" type="button">Visualizar</button>
+              <button id="validate-import" class="secondary-button" type="button" disabled>Checar</button>
+              <button id="download-import" class="secondary-button" type="button" disabled>Baixar lista importada</button>
+            </div>
+          </div>
+          <div class="import-controls">
+            <input id="import-file" type="file" accept=".txt,.csv,.xlsx" />
+          </div>
+          <div id="import-status" class="save-status"></div>
+          <div id="import-issues" class="issue-list"></div>
+          <div id="import-summary" class="metric-grid compact-metrics"></div>
+          <div class="table-wrap">
+            <table class="sheet-table">
+              <thead>
+                <tr>
+                  <th>Linha</th>
+                  <th>Tipo</th>
+                  <th>Artista</th>
+                  <th>Musica</th>
+                  <th>Genero</th>
+                  <th>Spotify</th>
+                </tr>
+              </thead>
+              <tbody id="import-rows">
+                <tr>
+                  <td colspan="6">Escolha um arquivo txt, csv ou xlsx.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tasks" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">Fila</p>
+              <h2>Tarefas</h2>
+            </div>
+            <div class="button-row">
+              <button id="refresh-tasks" class="secondary-button" type="button">Atualizar</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="sheet-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Status</th>
+                  <th>Inicio</th>
+                  <th>Fim</th>
+                  <th>Codigo</th>
+                </tr>
+              </thead>
+              <tbody id="task-rows">
+                <tr><td colspan="5">Nenhuma tarefa nesta sessao.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="environment" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">Diagnostico</p>
+              <h2>Ambiente</h2>
+            </div>
+            <div class="button-row">
+              <button id="check-environment" class="secondary-button" type="button">Checar</button>
+            </div>
+          </div>
+          <div id="environment-grid" class="env-grid"></div>
+        </section>
+
+        <section id="history" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">Estado local</p>
+              <h2>Historico e falhas</h2>
+            </div>
+            <div class="button-row">
+              <button id="retry-failures" class="primary-button" type="button">Tentar falhas</button>
+              <button id="refresh-history" class="secondary-button" type="button">Atualizar</button>
+            </div>
+          </div>
+          <div id="history-summary" class="metric-grid compact-metrics"></div>
+          <div class="sheet-toolbar">
+            <input id="history-search" type="search" placeholder="Filtrar historico e falhas" />
+            <select id="history-file-filter">
+              <option value="erros">Erros</option>
+              <option value="baixados">Baixados</option>
+              <option value="tracks">Tracks</option>
+              <option value="spotify">Spotify</option>
+              <option value="files">Arquivos</option>
+            </select>
+          </div>
+          <pre id="history-log" class="task-log">Clique em atualizar para carregar.</pre>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js?v=20260625-source1"></script>
+  </body>
+</html>

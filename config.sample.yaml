@@ -1,0 +1,82 @@
+# Copie este arquivo para config.yaml e ajuste para sua maquina.
+
+source:
+  google_sheet_csv: "https://docs.google.com/spreadsheets/d/SEU_ID/export?format=csv&gid=0"
+
+paths:
+  music_dir: "C:/Users/SEU_USUARIO/Music/google"
+  state_dir: "C:/Users/SEU_USUARIO/Music"
+
+execution:
+  reescan_list: false
+  dry_run: false
+  tagmusic: false
+  tag_force: false
+  only_row: null
+  only_url: null
+  log_level: "INFO" # DEBUG, INFO ou QUIET
+
+network:
+  disable_ssl_verify: false
+
+audio:
+  format: "mp3" # mp3 ou m4a
+  quality: 320
+  detect_bpm: false
+  bpm_seconds: 20
+  embed_metadata: false
+  embed_thumbnail: false
+  auto_tag_after_download: true
+  auto_tag_force: false
+
+conversion:
+  enable: false
+  conversion_only: false
+  verbose: true
+  music_dir: "C:/Users/SEU_USUARIO/Music/google"
+  source_format: "m4a" # entrada: mp3, m4a, mp4, flac, wav, ogg, opus ou aac
+  destination_format: "mp3" # saida: mp3, m4a, flac, wav, ogg, opus ou aac
+  dry_run: true
+  delete_source: false
+  workers: 4 # quantidade de conversoes em paralelo
+  ffmpeg_threads: 1 # threads internas do ffmpeg por arquivo
+
+spotify:
+  mode: "EMBED" # EMBED, INDEX_ONLY, YOUTUBE_ONLY ou OFF
+  embed_timeout_seconds: 20
+  artist_mode: "top_tracks" # top_tracks ou discography
+  artist_market: "BR"
+  artist_album_groups:
+    - "album"
+    - "single"
+  artist_max_albums: null
+  artist_max_tracks: null
+  credentials_file: "spotify_secrets.yaml"
+  client_id: null
+  client_secret: null
+
+history:
+  mark_collection_done_with_failures: false
+  max_failures_to_mark_done: 2
+
+ytdlp:
+  verbose: false
+  format: "bestaudio/best"
+  query_template: "{artist} {title} {term}"
+  search_results: 3
+  player_client: "android"
+  player_clients:
+    - "android"
+    - "web"
+    - "ios"
+  concurrent_fragments: 8
+  extractor_retries: 3
+  remote_components:
+    - "ejs:github"
+  cookies_from_browser: null # edge, chrome, firefox, off ou null
+  search_terms:
+    - "extended"
+    - "official audio"
+    - "official music video"
+    - "lyrics"
+    - "audio"

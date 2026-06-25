@@ -1,0 +1,18 @@
+{
+  "id": "cb24404f-abdd-40de-b0a9-c7d4efd1eeb0",
+  "kind": "test",
+  "status": "succeeded",
+  "returncode": 0,
+  "started_at": "2026-06-24T21:33:26",
+  "finished_at": "2026-06-24T21:33:26",
+  "logs": [
+    "Iniciando tarefa: C:\\Program Files\\Python312\\python.exe -c print('hello from task')",
+    "hello from task"
+  ],
+  "progress": {},
+  "command": [
+    "C:\\Program Files\\Python312\\python.exe",
+    "-c",
+    "print('hello from task')"
+  ]
+}

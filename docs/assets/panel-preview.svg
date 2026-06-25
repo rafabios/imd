@@ -1,0 +1,56 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" fill="#0D1620"/>
+  <rect x="80" y="74" width="1440" height="832" rx="34" fill="#F4F7F8"/>
+  <rect x="80" y="74" width="330" height="832" rx="34" fill="#132435"/>
+  <circle cx="210" cy="184" r="45" fill="url(#logo)"/>
+  <text x="210" y="194" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="900" fill="#FFF8EA">IMD</text>
+  <text x="275" y="174" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800" fill="#FFFFFF">IMD</text>
+  <text x="275" y="204" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="600" fill="#9FB0BD">Insane Music Downloader</text>
+  <rect x="132" y="284" width="226" height="48" rx="14" fill="#253A4D"/>
+  <rect x="148" y="298" width="4" height="20" rx="2" fill="#FFB22E"/>
+  <text x="174" y="315" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">Visao geral</text>
+  <text x="174" y="385" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Configuracoes</text>
+  <text x="174" y="445" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Conversao</text>
+  <text x="174" y="505" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Download</text>
+  <text x="174" y="565" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Planilha</text>
+  <rect x="465" y="126" width="990" height="170" rx="28" fill="#FFFFFF"/>
+  <text x="520" y="183" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">PAINEL LOCAL</text>
+  <text x="520" y="238" font-family="Inter, Arial, sans-serif" font-size="52" font-weight="900" fill="#17212B">IMD Insane Music Downloader</text>
+  <rect x="1270" y="164" width="130" height="42" rx="21" fill="#DEF6F1"/>
+  <text x="1335" y="191" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#087161">Online</text>
+  <rect x="465" y="340" width="470" height="225" rx="22" fill="#FFFFFF"/>
+  <rect x="465" y="340" width="470" height="5" rx="2.5" fill="url(#stripe)"/>
+  <text x="510" y="400" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">RESUMO</text>
+  <text x="510" y="445" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#17212B">Estado atual</text>
+  <rect x="510" y="485" width="112" height="54" rx="13" fill="#F8FBFC"/>
+  <rect x="642" y="485" width="112" height="54" rx="13" fill="#F8FBFC"/>
+  <rect x="774" y="485" width="112" height="54" rx="13" fill="#F8FBFC"/>
+  <text x="566" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">MP3</text>
+  <text x="698" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">320</text>
+  <text x="830" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">4x</text>
+  <rect x="980" y="340" width="475" height="225" rx="22" fill="#FFFFFF"/>
+  <rect x="980" y="340" width="475" height="5" rx="2.5" fill="url(#stripe)"/>
+  <text x="1025" y="400" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">SAUDE</text>
+  <text x="1025" y="445" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#17212B">Configuracao</text>
+  <rect x="1025" y="485" width="350" height="46" rx="12" fill="#DEF6F1"/>
+  <text x="1048" y="514" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#087161">Config carregado com sucesso.</text>
+  <rect x="465" y="610" width="990" height="220" rx="22" fill="#FFFFFF"/>
+  <rect x="465" y="610" width="990" height="5" rx="2.5" fill="url(#stripe)"/>
+  <text x="510" y="670" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">GOOGLE SHEETS</text>
+  <rect x="510" y="710" width="420" height="46" rx="12" fill="#F8FBFC" stroke="#D7E1E6"/>
+  <rect x="955" y="710" width="140" height="46" rx="12" fill="#132435"/>
+  <text x="1025" y="740" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#FFFFFF">Carregar</text>
+  <rect x="510" y="786" width="860" height="2" fill="#D7E1E6"/>
+  <rect x="510" y="820" width="670" height="2" fill="#D7E1E6"/>
+  <defs>
+    <linearGradient id="logo" x1="165" y1="139" x2="255" y2="229" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB22E"/>
+      <stop offset="1" stop-color="#E55372"/>
+    </linearGradient>
+    <linearGradient id="stripe" x1="465" y1="0" x2="1455" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB22E"/>
+      <stop offset="0.5" stop-color="#E55372"/>
+      <stop offset="1" stop-color="#13A38B"/>
+    </linearGradient>
+  </defs>
+</svg>

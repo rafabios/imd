@@ -1,0 +1,26 @@
+{
+  "id": "694c31f8-0b49-4a17-bbaf-4b6071a83c75",
+  "kind": "download",
+  "status": "canceled",
+  "returncode": 1,
+  "started_at": "2026-06-24T21:39:21",
+  "finished_at": "2026-06-24T21:40:00",
+  "logs": [
+    "Iniciando tarefa: C:\\Program Files\\Python312\\python.exe C:\\Users\\rafa\\Documents\\apps\\music_downloader_docker\\music_downloader.py --reescan-list --no-dry-run --no-tagmusic",
+    "Conversao: mp4 -> mp3 | arquivos=1623 | dry_run=NAO | delete_source=SIM | workers=4 | ffmpeg_threads=1",
+    "",
+    "Cancelamento solicitado.",
+    "Converting:   0%|          | 0/1623 [00:00<?, ?file/s]"
+  ],
+  "progress": {
+    "total": 1623,
+    "phase": "conversion"
+  },
+  "command": [
+    "C:\\Program Files\\Python312\\python.exe",
+    "C:\\Users\\rafa\\Documents\\apps\\music_downloader_docker\\music_downloader.py",
+    "--reescan-list",
+    "--no-dry-run",
+    "--no-tagmusic"
+  ]
+}
