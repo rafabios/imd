@@ -16,13 +16,12 @@ O arquivo `CNAME` ja contem:
 imd.vemcompy.tec.br
 ```
 
-## Antes de publicar
+## Download automatico
 
-Troque estes links em `docs/index.html` pelo repositorio real:
+O botao principal de download aponta para:
 
 ```txt
-https://github.com/rafabios/imd/releases/latest
-https://github.com/rafabios/imd
+https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest.msi
 ```
 
-Depois que a primeira release com MSI existir, o botao de download vai mandar para o instalador mais recente.
+O workflow do GitHub Actions gera uma copia fixa chamada `IMD-Insane-Music-Downloader-latest.msi` junto com o MSI versionado. Assim o site sempre baixa o instalador da ultima release sem editar HTML.

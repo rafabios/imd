@@ -1,15 +1,15 @@
-# Placeholder de downloads
+# Downloads locais opcionais
 
-Coloque aqui o MSI gerado pelo GitHub Actions se quiser que o GitHub Pages sirva o instalador direto pelo site.
+O site agora baixa automaticamente o MSI da ultima release:
 
-Nome esperado pelo botao principal:
+```txt
+https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest.msi
+```
+
+Esta pasta fica apenas como alternativa caso voce queira hospedar um MSI direto no GitHub Pages.
+
+Nome sugerido para download local:
 
 ```txt
 IMD-Insane-Music-Downloader-latest.msi
-```
-
-Alternativa recomendada para releases publicas: troque o `href` do botao em `docs/index.html` para:
-
-```txt
-https://github.com/rafabios/imd/releases/latest
 ```
