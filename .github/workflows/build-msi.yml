@@ -117,6 +117,7 @@ jobs:
           if ($msi.Length -lt 1000000) {
             throw "MSI gerado parece pequeno demais: $($msi.Length) bytes"
           }
+          Copy-Item $msiPath "dist\IMD-Insane-Music-Downloader-latest.msi" -Force
           Write-Host "MSI gerado: $($msi.FullName) ($([math]::Round($msi.Length / 1MB, 2)) MB)"
 
       - name: Smoke test MSI install
