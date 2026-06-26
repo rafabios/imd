@@ -2,6 +2,16 @@ name: Build Windows MSI
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag da release a publicar quando rodar manualmente"
+        required: true
+        default: "v0.1.0"
+      publish_release:
+        description: "Publicar o MSI no GitHub Releases"
+        required: true
+        type: boolean
+        default: true
   push:
     tags:
       - "v*"
@@ -148,7 +158,10 @@ jobs:
             dist/uninstall.log
 
       - name: Attach MSI to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          name: IMD Insane Music Downloader ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          generate_release_notes: true
           files: dist/*.msi
