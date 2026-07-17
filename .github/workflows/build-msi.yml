@@ -136,6 +136,9 @@ jobs:
             throw "Inno Setup Compiler nao encontrado."
           }
           & $iscc "packaging\IMDInstaller.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Compilacao do Setup EXE falhou no Inno Setup. Veja o log acima."
+          }
           $setupPath = "dist\IMD-Insane-Music-Downloader-$env:PRODUCT_VERSION-Setup.exe"
           if (!(Test-Path $setupPath)) {
             throw "Setup EXE nao foi gerado: $setupPath"
