@@ -121,6 +121,90 @@ def test_spotify_parse_tracklist_deep_handles_nested_tracks(app):
     assert result["tracks"] == [{"artist": "Artist One", "title": "Song One", "album": "Album One"}]
 
 
+def test_spotify_embed_fetches_given_playlist_without_auth(app, monkeypatch):
+    requested = []
+    payload = {
+        "props": {
+            "pageProps": {
+                "state": {
+                    "data": {
+                        "entity": {
+                            "name": "This Is Vegas (Brazil)",
+                            "uri": "spotify:playlist:37i9dQZF1DZ06evO3g6rlh",
+                            "trackList": [
+                                {"title": "Wana", "subtitle": "Omiki,\u00a0Vegas (Brazil)"},
+                                {"title": "Butterfly", "subtitle": "Vegas (Brazil)"},
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+    }
+    html_text = (
+        "<html><head><title>This Is Vegas (Brazil)</title></head><body>"
+        f"<script id=\"__NEXT_DATA__\" type=\"application/json\">{app.html.escape(app.json.dumps(payload))}</script>"
+        "</body></html>"
+    )
+
+    def fake_get(url, timeout=20):
+        requested.append(url)
+        return html_text
+
+    monkeypatch.setattr(app, "spotify_embed_http_get_text", fake_get)
+    monkeypatch.setattr(app, "load_embed_cache", lambda: {})
+    monkeypatch.setattr(app, "save_embed_cache", lambda data: None)
+
+    result = app.spotify_embed_fetch_collection(
+        "https://open.spotify.com/playlist/37i9dQZF1DZ06evO3g6rlh?si=os5Rkcf6Qg2zQfDcpkTjMw",
+        force_refresh=True,
+        write_cache=False,
+    )
+
+    assert requested == ["https://open.spotify.com/embed/playlist/37i9dQZF1DZ06evO3g6rlh"]
+    assert result["entity_type"] == "playlist"
+    assert result["name"] == "This Is Vegas (Brazil)"
+    assert result["tracks"] == [
+        {"artist": "Omiki, Vegas (Brazil)", "title": "Wana", "album": ""},
+        {"artist": "Vegas (Brazil)", "title": "Butterfly", "album": ""},
+    ]
+
+
+def test_spotify_embed_fetches_given_artist_without_auth(app, monkeypatch):
+    requested = []
+    html_text = """
+    <html>
+      <head><title>Earthspace | Spotify</title></head>
+      <body>
+        <h3>Afterlife</h3><div>ignore</div><h4>Earthspace,&nbsp;Ital</h4>
+        <h3>Freaking Out</h3><div>ignore</div><h4>Earthspace</h4>
+      </body>
+    </html>
+    """
+
+    def fake_get(url, timeout=20):
+        requested.append(url)
+        return html_text
+
+    monkeypatch.setattr(app, "spotify_embed_http_get_text", fake_get)
+    monkeypatch.setattr(app, "load_embed_cache", lambda: {})
+    monkeypatch.setattr(app, "save_embed_cache", lambda data: None)
+
+    result = app.spotify_embed_fetch_collection(
+        "https://open.spotify.com/intl-pt/artist/6yShdcbFZ0424zEvbm22yY?si=xA4igCeKT4OP7Q3aWwAhkw",
+        force_refresh=True,
+        write_cache=False,
+    )
+
+    assert requested == ["https://open.spotify.com/embed/artist/6yShdcbFZ0424zEvbm22yY"]
+    assert result["entity_type"] == "artist"
+    assert result["name"] == "Earthspace"
+    assert result["tracks"] == [
+        {"artist": "Earthspace, Ital", "title": "Afterlife", "album": ""},
+        {"artist": "Earthspace", "title": "Freaking Out", "album": ""},
+    ]
+
+
 def test_search_queries_use_config_template(app):
     queries = app.build_search_queries("Artist", "Track")
     assert queries[0] == "Artist Track extended"

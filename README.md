@@ -27,7 +27,7 @@ Os instaladores sao por usuario, instalam em `AppData`, criam atalho no Menu Ini
 This container runs a Python script that:
 - Reads a Google Sheets CSV export (or your override URL)
 - Downloads individual tracks from YouTube (yt-dlp)
-- Optionally downloads Spotify playlists using spotdl
+- Optionally downloads Spotify playlists/artists from public Spotify embed pages
 - Converts audio to MP3 (320kbps by default)
 - Optionally detects BPM (fast method)
 - Writes logs to `data/erros.txt` and keeps an idempotent history in `data/historico.txt`

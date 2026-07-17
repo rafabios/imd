@@ -656,8 +656,8 @@ def spotify_parse_embed_tracklist(next_data: Dict[str, Any]) -> Dict[str, Any]:
     for item in tracks_raw:
         if not isinstance(item, dict):
             continue
-        title = (item.get("title") or "").strip()
-        artist = (item.get("subtitle") or item.get("artist") or "").strip()
+        title = normalize_spotify_text(item.get("title") or "")
+        artist = normalize_spotify_text(item.get("subtitle") or item.get("artist") or "")
         if not title or not artist:
             continue
         key = (normalize(artist), normalize(title))
@@ -677,15 +677,22 @@ def spotify_parse_embed_tracklist(next_data: Dict[str, Any]) -> Dict[str, Any]:
         "count": len(tracks),
     }
 
+def normalize_spotify_text(value: Any) -> str:
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"<.*?>", "", text)
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
 def spotify_parse_tracklist_deep(next_data: Dict[str, Any]) -> Dict[str, Any]:
     tracks: List[Dict[str, str]] = []
     seen = set()
     entity_name = ""
 
     def add_track(title: str, artist: str, album: str = "") -> None:
-        title = (title or "").strip()
-        artist = (artist or "").strip()
-        album = (album or "").strip()
+        title = normalize_spotify_text(title)
+        artist = normalize_spotify_text(artist)
+        album = normalize_spotify_text(album)
         key = (normalize_loose(artist), normalize_loose(title))
         if artist and title and key not in seen:
             seen.add(key)
@@ -696,11 +703,11 @@ def spotify_parse_tracklist_deep(next_data: Dict[str, Any]) -> Dict[str, Any]:
             names = []
             for item in value:
                 if isinstance(item, dict):
-                    name = (item.get("name") or item.get("title") or "").strip()
+                    name = normalize_spotify_text(item.get("name") or item.get("title") or "")
                     if name:
                         names.append(name)
                 elif isinstance(item, str) and item.strip():
-                    names.append(item.strip())
+                    names.append(normalize_spotify_text(item))
             return ", ".join(names)
         if isinstance(value, str):
             return value.strip()
@@ -712,15 +719,15 @@ def spotify_parse_tracklist_deep(next_data: Dict[str, Any]) -> Dict[str, Any]:
             if not entity_name:
                 entity_name = str(value.get("name") or value.get("title") or "").strip()
 
-            title = str(value.get("name") or value.get("title") or "").strip()
+            title = normalize_spotify_text(value.get("name") or value.get("title") or "")
             artist = (
                 artist_names(value.get("artists"))
                 or artist_names(value.get("artist"))
-                or str(value.get("subtitle") or "").strip()
+                or normalize_spotify_text(value.get("subtitle") or "")
             )
             album = ""
             if isinstance(value.get("album"), dict):
-                album = str(value["album"].get("name") or value["album"].get("title") or "").strip()
+                album = normalize_spotify_text(value["album"].get("name") or value["album"].get("title") or "")
             if title and artist:
                 add_track(title, artist, album)
 
@@ -754,8 +761,8 @@ def spotify_parse_embed_tracklist_from_html(html_text: str) -> Dict[str, Any]:
     )
 
     for m in pattern.finditer(clean):
-        title = re.sub(r"<.*?>", "", m.group(1)).strip()
-        artist = re.sub(r"<.*?>", "", m.group(2)).strip()
+        title = normalize_spotify_text(m.group(1))
+        artist = normalize_spotify_text(m.group(2))
         artist = re.sub(r"^E\s+", "", artist).strip()
         if not title or not artist:
             continue
@@ -770,50 +777,6 @@ def spotify_parse_embed_tracklist_from_html(html_text: str) -> Dict[str, Any]:
         "uri": "",
         "tracks": tracks,
         "count": len(tracks),
-    }
-
-def spotify_spotdl_fetch_collection(url: str) -> Optional[Dict[str, Any]]:
-    norm_url = normalize_spotify_url(url)
-    entity_type = spotify_detect_entity_type(norm_url)
-    entity_id = spotify_extract_entity_id(norm_url, entity_type)
-    if not entity_id or entity_type not in SPOTIFY_ENTITY_TYPES:
-        return None
-    try:
-        from spotdl.utils.search import get_simple_songs
-
-        songs = get_simple_songs([norm_url], playlist_numbering=False, playlist_retain_track_cover=False)
-    except Exception as e:
-        log_error(f"[SPOTDL] Falha ao ler Spotify: {norm_url} :: {e}")
-        return None
-
-    tracks: List[Dict[str, str]] = []
-    seen = set()
-    collection_name = ""
-    for song in songs or []:
-        title = str(getattr(song, "name", "") or "").strip()
-        artist = str(getattr(song, "artist", "") or "").strip()
-        if not artist:
-            artists = getattr(song, "artists", []) or []
-            artist = ", ".join(str(item).strip() for item in artists if str(item).strip())
-        album = str(getattr(song, "album_name", "") or "").strip()
-        collection_name = collection_name or str(getattr(song, "list_name", "") or "").strip()
-        key = (normalize_loose(artist), normalize_loose(title))
-        if artist and title and key not in seen:
-            seen.add(key)
-            tracks.append({"artist": artist, "title": title, "album": album})
-
-    if not tracks:
-        return None
-    return {
-        "url": norm_url,
-        "entity_id": entity_id,
-        "entity_type": entity_type,
-        "name": collection_name,
-        "uri": "",
-        "tracks": tracks,
-        "count": len(tracks),
-        "ts": datetime.now().isoformat(timespec="seconds"),
-        "source": "spotdl",
     }
 
 def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_cache: bool = True) -> Optional[Dict[str, Any]]:
@@ -831,14 +794,6 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
         return cached
     if force_refresh and cached:
         log(f"🔄 Reescan ativo: ignorando cache do embed Spotify: {norm_url}")
-
-    spotdl_result = spotify_spotdl_fetch_collection(norm_url)
-    if spotdl_result and spotdl_result.get("tracks"):
-        if write_cache:
-            cache[norm_url] = spotdl_result
-            save_embed_cache(cache)
-        log(f"✅ spotdl Spotify OK: {spotdl_result.get('name') or norm_url} | tracks={spotdl_result.get('count', 0)}")
-        return spotdl_result
 
     embed_url = f"https://open.spotify.com/embed/{entity_type}/{entity_id}"
     log(f"🌐 Lendo {entity_type} do embed Spotify: {embed_url}")
