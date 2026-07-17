@@ -208,11 +208,36 @@ jobs:
           if ($configText -notmatch [regex]::Escape(($env:USERPROFILE -replace "\\", "/") + "/Music/IMD")) {
             throw "config.yaml nao contem a pasta de musicas esperada."
           }
+          $staleInternal = Join-Path $installDir "_internal\stale-from-old-build.txt"
+          $staleTopLevelWeb = Join-Path $installDir "web\stale-from-old-build.txt"
+          New-Item -ItemType Directory -Force (Split-Path $staleInternal) | Out-Null
+          New-Item -ItemType Directory -Force (Split-Path $staleTopLevelWeb) | Out-Null
+          Set-Content -Path $staleInternal -Value "old internal file"
+          Set-Content -Path $staleTopLevelWeb -Value "old web file"
+          $reinstall = Start-Process -FilePath $setupPath -ArgumentList @("/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES") -Wait -PassThru
+          if ($reinstall.ExitCode -ne 0) {
+            throw "Reinstalacao EXE falhou com exit code $($reinstall.ExitCode)."
+          }
+          if (Test-Path $staleInternal) {
+            throw "Reinstalacao EXE deixou lixo antigo em _internal: $staleInternal"
+          }
+          if (Test-Path $staleTopLevelWeb) {
+            throw "Reinstalacao EXE deixou lixo antigo em web: $staleTopLevelWeb"
+          }
+          if (!(Test-Path $installedExe)) {
+            throw "IMD.exe sumiu apos reinstalacao EXE: $installedExe"
+          }
           $uninstaller = Join-Path $installDir "unins000.exe"
           if (Test-Path $uninstaller) {
             $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES") -Wait -PassThru
             if ($uninstall.ExitCode -ne 0) {
               throw "Desinstalacao EXE falhou com exit code $($uninstall.ExitCode)."
+            }
+            if (Test-Path $installedExe) {
+              throw "Desinstalacao EXE deixou IMD.exe instalado: $installedExe"
+            }
+            if (Test-Path (Join-Path $installDir "_internal")) {
+              throw "Desinstalacao EXE deixou _internal instalado."
             }
           }
 
