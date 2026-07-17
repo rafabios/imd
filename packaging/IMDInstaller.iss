@@ -1,4 +1,4 @@
-#define MyAppName "IMD Insane Music Downloader"
+﻿#define MyAppName "IMD Insane Music Downloader"
 #define MyAppExeName "IMD.exe"
 #define MyAppPublisher "IMD"
 #define MyAppVersion GetEnv("PRODUCT_VERSION")
@@ -56,89 +56,94 @@ begin
   Result := Value;
 end;
 
+function NL(): String;
+begin
+  Result := Chr(13) + Chr(10);
+end;
+
 function InitialConfig(MusicDir: String; StateDir: String; SheetUrl: String): String;
 begin
   Result :=
-    'source:' + #13#10 +
-    '  google_sheet_csv: "' + SheetUrl + '"' + #13#10 +
-    #13#10 +
-    'paths:' + #13#10 +
-    '  music_dir: "' + MusicDir + '"' + #13#10 +
-    '  state_dir: "' + StateDir + '"' + #13#10 +
-    #13#10 +
-    'execution:' + #13#10 +
-    '  reescan_list: false' + #13#10 +
-    '  dry_run: false' + #13#10 +
-    '  tagmusic: false' + #13#10 +
-    '  tag_force: false' + #13#10 +
-    '  only_row: null' + #13#10 +
-    '  only_url: null' + #13#10 +
-    '  log_level: "INFO"' + #13#10 +
-    #13#10 +
-    'network:' + #13#10 +
-    '  disable_ssl_verify: false' + #13#10 +
-    #13#10 +
-    'audio:' + #13#10 +
-    '  format: "mp3"' + #13#10 +
-    '  quality: 320' + #13#10 +
-    '  detect_bpm: false' + #13#10 +
-    '  bpm_seconds: 20' + #13#10 +
-    '  embed_metadata: false' + #13#10 +
-    '  embed_thumbnail: false' + #13#10 +
-    '  auto_tag_after_download: true' + #13#10 +
-    '  auto_tag_force: false' + #13#10 +
-    #13#10 +
-    'conversion:' + #13#10 +
-    '  enable: false' + #13#10 +
-    '  conversion_only: false' + #13#10 +
-    '  verbose: true' + #13#10 +
-    '  music_dir: "' + MusicDir + '"' + #13#10 +
-    '  source_format: "m4a"' + #13#10 +
-    '  destination_format: "mp3"' + #13#10 +
-    '  dry_run: true' + #13#10 +
-    '  delete_source: false' + #13#10 +
-    '  workers: 4' + #13#10 +
-    '  ffmpeg_threads: 1' + #13#10 +
-    #13#10 +
-    'spotify:' + #13#10 +
-    '  mode: "EMBED"' + #13#10 +
-    '  embed_timeout_seconds: 20' + #13#10 +
-    '  artist_mode: "top_tracks"' + #13#10 +
-    '  artist_market: "BR"' + #13#10 +
-    '  artist_album_groups:' + #13#10 +
-    '    - "album"' + #13#10 +
-    '    - "single"' + #13#10 +
-    '  artist_max_albums: null' + #13#10 +
-    '  artist_max_tracks: null' + #13#10 +
-    '  credentials_file: "spotify_secrets.yaml"' + #13#10 +
-    '  client_id: null' + #13#10 +
-    '  client_secret: null' + #13#10 +
-    #13#10 +
-    'history:' + #13#10 +
-    '  mark_collection_done_with_failures: false' + #13#10 +
-    '  max_failures_to_mark_done: 2' + #13#10 +
-    #13#10 +
-    'ytdlp:' + #13#10 +
-    '  verbose: false' + #13#10 +
-    '  format: "bestaudio/best"' + #13#10 +
-    '  query_template: "{artist} {title} {term}"' + #13#10 +
-    '  search_results: 3' + #13#10 +
-    '  player_client: "android"' + #13#10 +
-    '  player_clients:' + #13#10 +
-    '    - "android"' + #13#10 +
-    '    - "web"' + #13#10 +
-    '    - "ios"' + #13#10 +
-    '  concurrent_fragments: 8' + #13#10 +
-    '  extractor_retries: 3' + #13#10 +
-    '  remote_components:' + #13#10 +
-    '    - "ejs:github"' + #13#10 +
-    '  cookies_from_browser: null' + #13#10 +
-    '  search_terms:' + #13#10 +
-    '    - "extended"' + #13#10 +
-    '    - "official audio"' + #13#10 +
-    '    - "official music video"' + #13#10 +
-    '    - "lyrics"' + #13#10 +
-    '    - "audio"' + #13#10;
+    'source:' + NL() +
+    '  google_sheet_csv: "' + SheetUrl + '"' + NL() +
+    NL() +
+    'paths:' + NL() +
+    '  music_dir: "' + MusicDir + '"' + NL() +
+    '  state_dir: "' + StateDir + '"' + NL() +
+    NL() +
+    'execution:' + NL() +
+    '  reescan_list: false' + NL() +
+    '  dry_run: false' + NL() +
+    '  tagmusic: false' + NL() +
+    '  tag_force: false' + NL() +
+    '  only_row: null' + NL() +
+    '  only_url: null' + NL() +
+    '  log_level: "INFO"' + NL() +
+    NL() +
+    'network:' + NL() +
+    '  disable_ssl_verify: false' + NL() +
+    NL() +
+    'audio:' + NL() +
+    '  format: "mp3"' + NL() +
+    '  quality: 320' + NL() +
+    '  detect_bpm: false' + NL() +
+    '  bpm_seconds: 20' + NL() +
+    '  embed_metadata: false' + NL() +
+    '  embed_thumbnail: false' + NL() +
+    '  auto_tag_after_download: true' + NL() +
+    '  auto_tag_force: false' + NL() +
+    NL() +
+    'conversion:' + NL() +
+    '  enable: false' + NL() +
+    '  conversion_only: false' + NL() +
+    '  verbose: true' + NL() +
+    '  music_dir: "' + MusicDir + '"' + NL() +
+    '  source_format: "m4a"' + NL() +
+    '  destination_format: "mp3"' + NL() +
+    '  dry_run: true' + NL() +
+    '  delete_source: false' + NL() +
+    '  workers: 4' + NL() +
+    '  ffmpeg_threads: 1' + NL() +
+    NL() +
+    'spotify:' + NL() +
+    '  mode: "EMBED"' + NL() +
+    '  embed_timeout_seconds: 20' + NL() +
+    '  artist_mode: "top_tracks"' + NL() +
+    '  artist_market: "BR"' + NL() +
+    '  artist_album_groups:' + NL() +
+    '    - "album"' + NL() +
+    '    - "single"' + NL() +
+    '  artist_max_albums: null' + NL() +
+    '  artist_max_tracks: null' + NL() +
+    '  credentials_file: "spotify_secrets.yaml"' + NL() +
+    '  client_id: null' + NL() +
+    '  client_secret: null' + NL() +
+    NL() +
+    'history:' + NL() +
+    '  mark_collection_done_with_failures: false' + NL() +
+    '  max_failures_to_mark_done: 2' + NL() +
+    NL() +
+    'ytdlp:' + NL() +
+    '  verbose: false' + NL() +
+    '  format: "bestaudio/best"' + NL() +
+    '  query_template: "{artist} {title} {term}"' + NL() +
+    '  search_results: 3' + NL() +
+    '  player_client: "android"' + NL() +
+    '  player_clients:' + NL() +
+    '    - "android"' + NL() +
+    '    - "web"' + NL() +
+    '    - "ios"' + NL() +
+    '  concurrent_fragments: 8' + NL() +
+    '  extractor_retries: 3' + NL() +
+    '  remote_components:' + NL() +
+    '    - "ejs:github"' + NL() +
+    '  cookies_from_browser: null' + NL() +
+    '  search_terms:' + NL() +
+    '    - "extended"' + NL() +
+    '    - "official audio"' + NL() +
+    '    - "official music video"' + NL() +
+    '    - "lyrics"' + NL() +
+    '    - "audio"' + NL();
 end;
 
 procedure InitializeWizard;
@@ -207,3 +212,4 @@ begin
 
   SaveStringToFile(ConfigPath, InitialConfig(MusicDir, StateDir, SheetUrl), False);
 end;
+
