@@ -41,10 +41,6 @@ This container runs a Python script that:
 ## 2) Configure
 Edit `.env`:
 
-- Optional (recommended):
-  - `SPOTIPY_CLIENT_ID`
-  - `SPOTIPY_CLIENT_SECRET`
-
 - Optional:
   - `GOOGLE_SHEET_CSV`
   - `DETECT_BPM=1` (set 0 to disable)
@@ -70,4 +66,3 @@ docker run --rm -it \
 
 ## Notes
 - This image installs **deno** to avoid yt-dlp warnings about missing JavaScript runtime.
-- If you hit Spotify rate limits, add your Spotify credentials (above).

@@ -126,10 +126,15 @@ def flatten_config_paths(data: Dict[str, Any], prefix: str = "") -> List[str]:
 
 def validate_config_data(config: Dict[str, Any], sample: Dict[str, Any]) -> Tuple[bool, List[str]]:
     messages: List[str] = []
+    deprecated_paths = {
+        "spotify.credentials_file",
+        "spotify.client_id",
+        "spotify.client_secret",
+    }
     config_paths = set(flatten_config_paths(config))
     sample_paths = set(flatten_config_paths(sample))
     missing_in_config = sorted(sample_paths - config_paths)
-    missing_in_sample = sorted(config_paths - sample_paths)
+    missing_in_sample = sorted((config_paths - sample_paths) - deprecated_paths)
 
     if missing_in_config:
         messages.append("Campos ausentes no config.yaml: " + ", ".join(missing_in_config))

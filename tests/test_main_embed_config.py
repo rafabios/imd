@@ -96,6 +96,31 @@ def test_spotify_url_normalization(app):
     assert app.normalize_spotify_url(url) == "https://open.spotify.com/playlist/4419fmChSKR2qkPFIsFTdg"
 
 
+def test_spotify_parse_tracklist_deep_handles_nested_tracks(app):
+    payload = {
+        "props": {
+            "pageProps": {
+                "playlist": {
+                    "name": "My Playlist",
+                    "items": [
+                        {
+                            "track": {
+                                "name": "Song One",
+                                "artists": [{"name": "Artist One"}],
+                                "album": {"name": "Album One"},
+                            }
+                        }
+                    ],
+                }
+            }
+        }
+    }
+
+    result = app.spotify_parse_tracklist_deep(payload)
+
+    assert result["tracks"] == [{"artist": "Artist One", "title": "Song One", "album": "Album One"}]
+
+
 def test_search_queries_use_config_template(app):
     queries = app.build_search_queries("Artist", "Track")
     assert queries[0] == "Artist Track extended"
@@ -125,6 +150,15 @@ def test_choose_youtube_url_prefers_title_and_artist(app):
             }
 
     assert app.choose_youtube_url(FakeYDL(), "Artist Track official audio", "Artist", "Track") == "https://youtu.be/good"
+
+
+def test_find_downloaded_file_prefers_configured_extension(app, tmp_path):
+    (tmp_path / "Artist - Track.mp4").write_bytes(b"video")
+    (tmp_path / "Artist - Track.mp3").write_bytes(b"audio")
+
+    found = app.find_downloaded_file(str(tmp_path), "Artist - Track", preferred_ext=".mp3")
+
+    assert Path(found).name == "Artist - Track.mp3"
 
 
 def test_dry_run_does_not_download_or_create_history(app, tmp_path):

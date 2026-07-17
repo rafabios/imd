@@ -115,9 +115,6 @@ begin
     '    - "single"' + NL() +
     '  artist_max_albums: null' + NL() +
     '  artist_max_tracks: null' + NL() +
-    '  credentials_file: "spotify_secrets.yaml"' + NL() +
-    '  client_id: null' + NL() +
-    '  client_secret: null' + NL() +
     NL() +
     'history:' + NL() +
     '  mark_collection_done_with_failures: false' + NL() +

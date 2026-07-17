@@ -8,7 +8,6 @@ import subprocess
 import json
 import html
 import argparse
-import base64
 import unicodedata
 import urllib.request
 import urllib.parse
@@ -144,9 +143,6 @@ SPOTIFY_ARTIST_MAX_TRACKS = config_int("spotify.artist_max_tracks", 0)
 
 GOOGLE_SHEET_CSV = config_str("source.google_sheet_csv", "")
 LOG_LEVEL = config_str("execution.log_level", "INFO").upper()
-SPOTIFY_CREDENTIALS_FILE = config_str("spotify.credentials_file", "")
-SPOTIPY_CLIENT_ID = config_str("spotify.client_id", "")
-SPOTIPY_CLIENT_SECRET = config_str("spotify.client_secret", "")
 DISABLE_SSL_VERIFY = config_bool("network.disable_ssl_verify", False)
 MARK_COLLECTION_DONE_WITH_FAILURES = config_bool("history.mark_collection_done_with_failures", False)
 MAX_FAILURES_TO_MARK_DONE = config_int("history.max_failures_to_mark_done", 0)
@@ -161,24 +157,6 @@ CONVERSION_DRY_RUN = config_bool("conversion.dry_run", True)
 CONVERSION_DELETE_SOURCE = config_bool("conversion.delete_source", False)
 CONVERSION_WORKERS = config_int("conversion.workers", 1)
 CONVERSION_FFMPEG_THREADS = config_int("conversion.ffmpeg_threads", 1)
-
-def load_credentials_file(path: str) -> Dict[str, Any]:
-    if not path:
-        return {}
-    cred_path = Path(path)
-    if not cred_path.is_absolute():
-        cred_path = Path.cwd() / cred_path
-    if not cred_path.exists():
-        return {}
-    with open(cred_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    return data if isinstance(data, dict) else {}
-
-SPOTIFY_SECRETS = load_credentials_file(SPOTIFY_CREDENTIALS_FILE)
-if not SPOTIPY_CLIENT_ID:
-    SPOTIPY_CLIENT_ID = str(SPOTIFY_SECRETS.get("client_id") or "").strip()
-if not SPOTIPY_CLIENT_SECRET:
-    SPOTIPY_CLIENT_SECRET = str(SPOTIFY_SECRETS.get("client_secret") or "").strip()
 
 AUDIO_EXTS = {".mp3", ".m4a", ".mp4", ".flac", ".wav", ".aiff", ".aif"}
 YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN = False
@@ -402,6 +380,24 @@ def detect_bpm(path: str) -> Optional[int]:
 # =========================
 # yt-dlp
 # =========================
+def bundled_ffmpeg_dir() -> Optional[str]:
+    roots = [
+        Path.cwd(),
+        Path(getattr(sys, "_MEIPASS", "")) if getattr(sys, "_MEIPASS", None) else None,
+        Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None,
+    ]
+    for root in roots:
+        if not root:
+            continue
+        for candidate in (root / "vendor" / "ffmpeg", root / "_internal" / "vendor" / "ffmpeg"):
+            if (candidate / "ffmpeg.exe").exists() and (candidate / "ffprobe.exe").exists():
+                return str(candidate)
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    if ffmpeg and ffprobe and Path(ffmpeg).parent == Path(ffprobe).parent:
+        return str(Path(ffmpeg).parent)
+    return None
+
 def yt_dlp_opts(folder: str, base: str, use_browser_cookies: bool = True) -> dict:
     outtmpl = os.path.join(folder, base + ".%(ext)s")
     postprocessors = []
@@ -437,6 +433,10 @@ def yt_dlp_opts(folder: str, base: str, use_browser_cookies: bool = True) -> dic
     if YTDLP_REMOTE_COMPONENTS:
         opts["remote_components"] = YTDLP_REMOTE_COMPONENTS
 
+    ffmpeg_dir = bundled_ffmpeg_dir()
+    if ffmpeg_dir:
+        opts["ffmpeg_location"] = ffmpeg_dir
+
     return opts
 
 def find_downloaded_file(folder: str, base: str, preferred_ext: Optional[str] = None) -> Optional[str]:
@@ -463,10 +463,12 @@ def convert_existing_to_mp3(source_path: str) -> Optional[str]:
         return str(source)
     if os.path.exists(destination):
         return destination
-    if not shutil.which("ffmpeg"):
+    ffmpeg_dir = bundled_ffmpeg_dir()
+    ffmpeg_exe = str(Path(ffmpeg_dir) / "ffmpeg.exe") if ffmpeg_dir else (shutil.which("ffmpeg") or "")
+    if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
         log_error(f"[YOUTUBE] Nao foi possivel converter para mp3 sem ffmpeg: {source_path}")
         return None
-    cmd = ["ffmpeg", "-y", "-i", str(source), "-vn", "-codec:a", "libmp3lame", "-b:a", f"{QUALITY_AUDIO}k", destination]
+    cmd = [ffmpeg_exe, "-y", "-i", str(source), "-vn", "-codec:a", "libmp3lame", "-b:a", f"{QUALITY_AUDIO}k", destination]
     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         log_error(f"[YOUTUBE] ffmpeg falhou ao converter {source_path}: {result.stderr}")
@@ -770,170 +772,48 @@ def spotify_parse_embed_tracklist_from_html(html_text: str) -> Dict[str, Any]:
         "count": len(tracks),
     }
 
-def spotify_get_client_token() -> Optional[str]:
-    if not SPOTIPY_CLIENT_ID or not SPOTIPY_CLIENT_SECRET:
-        log_error("[SPOTIFY_API] Missing SPOTIPY_CLIENT_ID or SPOTIPY_CLIENT_SECRET")
-        return None
-
-    creds = f"{SPOTIPY_CLIENT_ID}:{SPOTIPY_CLIENT_SECRET}".encode("utf-8")
-    data = urllib.parse.urlencode({"grant_type": "client_credentials"}).encode("utf-8")
-    req = urllib.request.Request(
-        "https://accounts.spotify.com/api/token",
-        data=data,
-        headers={
-            "Authorization": f"Basic {base64.b64encode(creds).decode('ascii')}",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "music-downloader/1.0",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            payload = json.loads(resp.read().decode("utf-8", errors="replace"))
-            return payload.get("access_token")
-    except Exception as e:
-        log_error(f"[SPOTIFY_API] Token error: {e}")
-        return None
-
-def spotify_api_get_json(url: str, token: str) -> Optional[Dict[str, Any]]:
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": "music-downloader/1.0",
-        },
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8", errors="replace"))
-    except Exception as e:
-        log_error(f"[SPOTIFY_API] GET failed: {url} :: {e}")
-        return None
-
-def spotify_api_fetch_collection(url: str) -> Optional[Dict[str, Any]]:
+def spotify_spotdl_fetch_collection(url: str) -> Optional[Dict[str, Any]]:
     norm_url = normalize_spotify_url(url)
     entity_type = spotify_detect_entity_type(norm_url)
     entity_id = spotify_extract_entity_id(norm_url, entity_type)
     if not entity_id or entity_type not in SPOTIFY_ENTITY_TYPES:
         return None
+    try:
+        from spotdl.utils.search import get_simple_songs
 
-    token = spotify_get_client_token()
-    if not token:
+        songs = get_simple_songs([norm_url], playlist_numbering=False, playlist_retain_track_cover=False)
+    except Exception as e:
+        log_error(f"[SPOTDL] Falha ao ler Spotify: {norm_url} :: {e}")
         return None
 
     tracks: List[Dict[str, str]] = []
-    name = ""
-    seen_tracks = set()
-
-    def add_track(track: Dict[str, Any]) -> None:
-        title = (track.get("name") or "").strip()
-        artists = track.get("artists") or []
-        artist = ", ".join((a.get("name") or "").strip() for a in artists if isinstance(a, dict) and a.get("name"))
-        album = ((track.get("album") or {}).get("name") or "").strip()
+    seen = set()
+    collection_name = ""
+    for song in songs or []:
+        title = str(getattr(song, "name", "") or "").strip()
+        artist = str(getattr(song, "artist", "") or "").strip()
+        if not artist:
+            artists = getattr(song, "artists", []) or []
+            artist = ", ".join(str(item).strip() for item in artists if str(item).strip())
+        album = str(getattr(song, "album_name", "") or "").strip()
+        collection_name = collection_name or str(getattr(song, "list_name", "") or "").strip()
         key = (normalize_loose(artist), normalize_loose(title))
-        if artist and title and key not in seen_tracks:
-            seen_tracks.add(key)
+        if artist and title and key not in seen:
+            seen.add(key)
             tracks.append({"artist": artist, "title": title, "album": album})
-
-    if entity_type == "playlist":
-        meta = spotify_api_get_json(
-            f"https://api.spotify.com/v1/playlists/{entity_id}?fields=name,tracks.total",
-            token,
-        )
-        if meta:
-            name = (meta.get("name") or "").strip()
-
-        offset = 0
-        limit = 100
-        while True:
-            page = spotify_api_get_json(
-                f"https://api.spotify.com/v1/playlists/{entity_id}/tracks"
-                f"?limit={limit}&offset={offset}"
-                f"&fields=items(track(name,artists(name),album(name))),next,total",
-                token,
-            )
-            if not page:
-                break
-            for item in page.get("items") or []:
-                track = (item or {}).get("track") or {}
-                add_track(track)
-            if not page.get("next"):
-                break
-            offset += limit
-
-    elif entity_type == "artist":
-        meta = spotify_api_get_json(f"https://api.spotify.com/v1/artists/{entity_id}", token)
-        if meta:
-            name = (meta.get("name") or "").strip()
-        if SPOTIFY_ARTIST_MODE in ("discography", "albums", "all"):
-            offset = 0
-            limit = 50
-            album_ids = []
-            while True:
-                page = spotify_api_get_json(
-                    f"https://api.spotify.com/v1/artists/{entity_id}/albums"
-                    f"?include_groups={urllib.parse.quote(','.join(SPOTIFY_ARTIST_ALBUM_GROUPS))}&market={urllib.parse.quote(SPOTIFY_ARTIST_MARKET)}"
-                    f"&limit={limit}&offset={offset}",
-                    token,
-                )
-                if not page:
-                    break
-                for album in page.get("items") or []:
-                    album_id = (album or {}).get("id")
-                    if album_id and album_id not in album_ids:
-                        album_ids.append(album_id)
-                        if SPOTIFY_ARTIST_MAX_ALBUMS and len(album_ids) >= SPOTIFY_ARTIST_MAX_ALBUMS:
-                            break
-                if SPOTIFY_ARTIST_MAX_ALBUMS and len(album_ids) >= SPOTIFY_ARTIST_MAX_ALBUMS:
-                    break
-                if not page.get("next"):
-                    break
-                offset += limit
-
-            for album_id in album_ids:
-                if SPOTIFY_ARTIST_MAX_TRACKS and len(tracks) >= SPOTIFY_ARTIST_MAX_TRACKS:
-                    break
-                offset = 0
-                while True:
-                    page = spotify_api_get_json(
-                        f"https://api.spotify.com/v1/albums/{album_id}/tracks"
-                        f"?market={urllib.parse.quote(SPOTIFY_ARTIST_MARKET)}&limit=50&offset={offset}",
-                        token,
-                    )
-                    if not page:
-                        break
-                    for track in page.get("items") or []:
-                        add_track(track)
-                        if SPOTIFY_ARTIST_MAX_TRACKS and len(tracks) >= SPOTIFY_ARTIST_MAX_TRACKS:
-                            break
-                    if SPOTIFY_ARTIST_MAX_TRACKS and len(tracks) >= SPOTIFY_ARTIST_MAX_TRACKS:
-                        break
-                    if not page.get("next"):
-                        break
-                    offset += 50
-        else:
-            page = spotify_api_get_json(
-                f"https://api.spotify.com/v1/artists/{entity_id}/top-tracks?market={urllib.parse.quote(SPOTIFY_ARTIST_MARKET)}",
-                token,
-            )
-            for track in (page or {}).get("tracks") or []:
-                add_track(track)
 
     if not tracks:
         return None
-
     return {
         "url": norm_url,
         "entity_id": entity_id,
         "entity_type": entity_type,
-        "name": name,
+        "name": collection_name,
         "uri": "",
         "tracks": tracks,
         "count": len(tracks),
         "ts": datetime.now().isoformat(timespec="seconds"),
-        "source": "spotify_api",
+        "source": "spotdl",
     }
 
 def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_cache: bool = True) -> Optional[Dict[str, Any]]:
@@ -944,16 +824,6 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
         log_error(f"[SPOTIFY_EMBED] Invalid Spotify URL: {url}")
         return None
 
-    if force_refresh:
-        api_result = spotify_api_fetch_collection(norm_url)
-        if api_result and api_result.get("tracks"):
-            if write_cache:
-                cache = load_embed_cache()
-                cache[norm_url] = api_result
-                save_embed_cache(cache)
-            log(f"✅ Spotify API reescan OK: {api_result.get('name') or norm_url} | tracks={api_result.get('count', 0)}")
-            return api_result
-
     cache = load_embed_cache()
     cached = cache.get(norm_url)
     if not force_refresh and cached and isinstance(cached, dict) and cached.get("tracks"):
@@ -962,14 +832,13 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
     if force_refresh and cached:
         log(f"🔄 Reescan ativo: ignorando cache do embed Spotify: {norm_url}")
 
-    if SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET:
-        api_result = spotify_api_fetch_collection(norm_url)
-        if api_result and api_result.get("tracks"):
-            if write_cache:
-                cache[norm_url] = api_result
-                save_embed_cache(cache)
-            log(f"✅ Spotify API OK: {api_result.get('name') or norm_url} | tracks={api_result.get('count', 0)}")
-            return api_result
+    spotdl_result = spotify_spotdl_fetch_collection(norm_url)
+    if spotdl_result and spotdl_result.get("tracks"):
+        if write_cache:
+            cache[norm_url] = spotdl_result
+            save_embed_cache(cache)
+        log(f"✅ spotdl Spotify OK: {spotdl_result.get('name') or norm_url} | tracks={spotdl_result.get('count', 0)}")
+        return spotdl_result
 
     embed_url = f"https://open.spotify.com/embed/{entity_type}/{entity_id}"
     log(f"🌐 Lendo {entity_type} do embed Spotify: {embed_url}")
@@ -996,8 +865,6 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
 
     if not parsed.get("tracks"):
         log_error(f"[SPOTIFY_EMBED] trackList empty: {embed_url}")
-        if not SPOTIPY_CLIENT_ID or not SPOTIPY_CLIENT_SECRET:
-            log_error("[SPOTIFY_API] Configure spotify.client_id e spotify.client_secret para usar a API oficial quando o embed publico falhar.")
         return None
 
     result = {
@@ -1511,8 +1378,8 @@ def main():
     if not input_file and not GOOGLE_SHEET_CSV:
         raise RuntimeError("google_sheet_csv nao foi definido no config.yaml")
 
-    if AUDIO_FORMAT == "mp3" and not shutil.which("ffmpeg"):
-        raise RuntimeError("AUDIO_FORMAT=mp3 precisa do ffmpeg instalado e disponivel no PATH.")
+    if AUDIO_FORMAT == "mp3" and not bundled_ffmpeg_dir():
+        raise RuntimeError("audio.format=mp3 precisa do ffmpeg/ffprobe. Reinstale usando o Setup.exe mais recente ou instale o ffmpeg no Windows.")
 
     log("Starting...")
     log(f"Modo reescan playlists/artistas: {'SIM' if reescan_list else 'NAO'}")

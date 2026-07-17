@@ -51,9 +51,6 @@ spotify:
     - "single"
   artist_max_albums: null
   artist_max_tracks: null
-  credentials_file: "spotify_secrets.yaml"
-  client_id: null
-  client_secret: null
 
 history:
   mark_collection_done_with_failures: false
