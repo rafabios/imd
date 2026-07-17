@@ -439,9 +439,10 @@ def yt_dlp_opts(folder: str, base: str, use_browser_cookies: bool = True) -> dic
 
     return opts
 
-def find_downloaded_file(folder: str, base: str) -> Optional[str]:
+def find_downloaded_file(folder: str, base: str, preferred_ext: Optional[str] = None) -> Optional[str]:
     if not os.path.exists(folder):
         return None
+    preferred_ext = (preferred_ext or "").lower()
     candidates = []
     for f in os.listdir(folder):
         if f.startswith(base + ".") or f.startswith(base + " ("):
@@ -452,8 +453,26 @@ def find_downloaded_file(folder: str, base: str) -> Optional[str]:
                 candidates.append(f)
     if not candidates:
         return None
-    candidates.sort(key=lambda x: (len(x), x))
+    candidates.sort(key=lambda x: (0 if preferred_ext and Path(x).suffix.lower() == preferred_ext else 1, len(x), x))
     return os.path.join(folder, candidates[0])
+
+def convert_existing_to_mp3(source_path: str) -> Optional[str]:
+    source = Path(source_path)
+    destination = str(source.with_suffix(".mp3"))
+    if source.suffix.lower() == ".mp3":
+        return str(source)
+    if os.path.exists(destination):
+        return destination
+    if not shutil.which("ffmpeg"):
+        log_error(f"[YOUTUBE] Nao foi possivel converter para mp3 sem ffmpeg: {source_path}")
+        return None
+    cmd = ["ffmpeg", "-y", "-i", str(source), "-vn", "-codec:a", "libmp3lame", "-b:a", f"{QUALITY_AUDIO}k", destination]
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        log_error(f"[YOUTUBE] ffmpeg falhou ao converter {source_path}: {result.stderr}")
+        return None
+    log(f"Convertido para mp3: {os.path.basename(destination)}")
+    return destination
 
 def build_search_queries(artist: str, title: str) -> List[str]:
     terms = YTDLP_SEARCH_TERMS or [""]
@@ -519,7 +538,11 @@ def run_youtube_track(
         os.makedirs(folder, exist_ok=True)
 
     base = safe_name(f"{artist} - {title}")
-    existing = find_downloaded_file(folder, base)
+    preferred_ext = f".{AUDIO_FORMAT}" if AUDIO_FORMAT else None
+    existing = find_downloaded_file(folder, base, preferred_ext=preferred_ext)
+    if AUDIO_FORMAT == "mp3" and existing and Path(existing).suffix.lower() != ".mp3":
+        existing = convert_existing_to_mp3(existing)
+
     if existing and os.path.exists(existing):
         if not dry_run:
             hist.add(tid)
@@ -551,7 +574,11 @@ def run_youtube_track(
                     log(f"YouTube selecionado: {selected_url}")
                     ydl.download([selected_url])
 
-                    final_path = find_downloaded_file(folder, base)
+                    final_path = find_downloaded_file(folder, base, preferred_ext=preferred_ext)
+                    if AUDIO_FORMAT == "mp3" and (not final_path or Path(final_path).suffix.lower() != ".mp3"):
+                        downloaded_path = find_downloaded_file(folder, base)
+                        if downloaded_path:
+                            final_path = convert_existing_to_mp3(downloaded_path)
                     if final_path and os.path.exists(final_path):
                         break
                     last_error = "file not found after download"
@@ -644,6 +671,67 @@ def spotify_parse_embed_tracklist(next_data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "name": entity_name,
         "uri": entity_uri,
+        "tracks": tracks,
+        "count": len(tracks),
+    }
+
+def spotify_parse_tracklist_deep(next_data: Dict[str, Any]) -> Dict[str, Any]:
+    tracks: List[Dict[str, str]] = []
+    seen = set()
+    entity_name = ""
+
+    def add_track(title: str, artist: str, album: str = "") -> None:
+        title = (title or "").strip()
+        artist = (artist or "").strip()
+        album = (album or "").strip()
+        key = (normalize_loose(artist), normalize_loose(title))
+        if artist and title and key not in seen:
+            seen.add(key)
+            tracks.append({"artist": artist, "title": title, "album": album})
+
+    def artist_names(value: Any) -> str:
+        if isinstance(value, list):
+            names = []
+            for item in value:
+                if isinstance(item, dict):
+                    name = (item.get("name") or item.get("title") or "").strip()
+                    if name:
+                        names.append(name)
+                elif isinstance(item, str) and item.strip():
+                    names.append(item.strip())
+            return ", ".join(names)
+        if isinstance(value, str):
+            return value.strip()
+        return ""
+
+    def walk(value: Any) -> None:
+        nonlocal entity_name
+        if isinstance(value, dict):
+            if not entity_name:
+                entity_name = str(value.get("name") or value.get("title") or "").strip()
+
+            title = str(value.get("name") or value.get("title") or "").strip()
+            artist = (
+                artist_names(value.get("artists"))
+                or artist_names(value.get("artist"))
+                or str(value.get("subtitle") or "").strip()
+            )
+            album = ""
+            if isinstance(value.get("album"), dict):
+                album = str(value["album"].get("name") or value["album"].get("title") or "").strip()
+            if title and artist:
+                add_track(title, artist, album)
+
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(next_data)
+    return {
+        "name": entity_name,
+        "uri": "",
         "tracks": tracks,
         "count": len(tracks),
     }
@@ -874,6 +962,15 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
     if force_refresh and cached:
         log(f"🔄 Reescan ativo: ignorando cache do embed Spotify: {norm_url}")
 
+    if SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET:
+        api_result = spotify_api_fetch_collection(norm_url)
+        if api_result and api_result.get("tracks"):
+            if write_cache:
+                cache[norm_url] = api_result
+                save_embed_cache(cache)
+            log(f"✅ Spotify API OK: {api_result.get('name') or norm_url} | tracks={api_result.get('count', 0)}")
+            return api_result
+
     embed_url = f"https://open.spotify.com/embed/{entity_type}/{entity_id}"
     log(f"🌐 Lendo {entity_type} do embed Spotify: {embed_url}")
     html_text = spotify_embed_http_get_text(embed_url, timeout=SPOTIFY_EMBED_TIMEOUT_SECONDS)
@@ -891,12 +988,16 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
     next_data = spotify_extract_next_data(html_text)
     if next_data:
         parsed = spotify_parse_embed_tracklist(next_data)
+        if not parsed or not parsed.get("tracks"):
+            parsed = spotify_parse_tracklist_deep(next_data)
 
     if not parsed or not parsed.get("tracks"):
         parsed = spotify_parse_embed_tracklist_from_html(html_text)
 
     if not parsed.get("tracks"):
         log_error(f"[SPOTIFY_EMBED] trackList empty: {embed_url}")
+        if not SPOTIPY_CLIENT_ID or not SPOTIPY_CLIENT_SECRET:
+            log_error("[SPOTIFY_API] Configure spotify.client_id e spotify.client_secret para usar a API oficial quando o embed publico falhar.")
         return None
 
     result = {

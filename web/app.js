@@ -646,7 +646,7 @@ async function startDownload() {
 
     if (source === "spotify_playlist") {
       const spotifyUrl = requireValue(downloadSpotifyUrlEl, "Informe o link da playlist ou artista do Spotify.");
-      if (!spotifyUrl.includes("open.spotify.com/playlist/") && !spotifyUrl.includes("open.spotify.com/artist/")) {
+      if (!/open\.spotify\.com\/(?:intl-[a-z]{2}\/)?(?:embed\/)?(?:playlist|artist)\//i.test(spotifyUrl)) {
         throw new Error("Use um link de playlist ou artista do Spotify.");
       }
       const row = manualRow("", "", downloadSpotifyUrlGenreEl.value.trim(), spotifyUrl);
