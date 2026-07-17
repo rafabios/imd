@@ -69,6 +69,40 @@ def test_save_config_rejects_missing_fields(monkeypatch, tmp_path):
     assert "conversion.workers" in result["validation"]["messages"][0]
 
 
+def test_spotify_check_payload_returns_track_count(monkeypatch):
+    import music_downloader
+
+    def fake_fetch(url, force_refresh=False, write_cache=True):
+        assert url == "https://open.spotify.com/playlist/abc"
+        assert force_refresh is True
+        assert write_cache is False
+        return {
+            "url": url,
+            "name": "Minha Playlist",
+            "entity_type": "playlist",
+            "tracks": [
+                {"artist": "Artist One", "title": "Track One"},
+                {"artist": "Artist Two", "title": "Track Two"},
+            ],
+        }
+
+    monkeypatch.setattr(music_downloader, "spotify_embed_fetch_collection", fake_fetch)
+
+    result = app_server.spotify_check_payload("https://open.spotify.com/playlist/abc")
+
+    assert result["ok"] is True
+    assert result["name"] == "Minha Playlist"
+    assert result["count"] == 2
+    assert result["sample"][0]["title"] == "Track One"
+
+
+def test_spotify_check_payload_rejects_empty_url():
+    result = app_server.spotify_check_payload("")
+
+    assert result["ok"] is False
+    assert "Spotify" in result["error"]
+
+
 def test_background_task_captures_logs():
     task = app_server.start_background_task(
         "test",
@@ -472,6 +506,40 @@ def test_http_tasks_endpoint():
 
     assert payload["ok"] is True
     assert payload["tasks"][0]["id"] == "abc"
+
+
+def test_http_spotify_check_endpoint(monkeypatch):
+    import music_downloader
+
+    def fake_fetch(url, force_refresh=False, write_cache=True):
+        return {
+            "url": url,
+            "name": "This Is Test",
+            "entity_type": "playlist",
+            "tracks": [{"artist": "A", "title": "T"}],
+        }
+
+    monkeypatch.setattr(music_downloader, "spotify_embed_fetch_collection", fake_fetch)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app_server.AppHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/api/spotify/check"
+        request = urllib.request.Request(
+            url,
+            data=json.dumps({"url": "https://open.spotify.com/playlist/abc"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["ok"] is True
+    assert payload["name"] == "This Is Test"
+    assert payload["count"] == 1
 
 
 def test_http_import_preview_endpoint():

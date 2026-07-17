@@ -39,6 +39,7 @@ const downloadSpotifyTitleEl = document.querySelector("#download-spotify-title")
 const downloadSpotifyGenreEl = document.querySelector("#download-spotify-genre");
 const downloadSpotifyUrlEl = document.querySelector("#download-spotify-url");
 const downloadSpotifyUrlGenreEl = document.querySelector("#download-spotify-url-genre");
+const testSpotifyLinkEl = document.querySelector("#test-spotify-link");
 const downloadStatusEl = document.querySelector("#download-status");
 const downloadStartedEl = document.querySelector("#download-started");
 const downloadFinishedEl = document.querySelector("#download-finished");
@@ -661,6 +662,40 @@ async function startDownload() {
   }
 }
 
+async function testSpotifyLink() {
+  try {
+    const spotifyUrl = requireValue(downloadSpotifyUrlEl, "Informe o link da playlist ou artista do Spotify.");
+    if (!/open\.spotify\.com\/(?:intl-[a-z]{2}\/)?(?:embed\/)?(?:playlist|artist)\//i.test(spotifyUrl)) {
+      throw new Error("Use um link de playlist ou artista do Spotify.");
+    }
+    testSpotifyLinkEl.disabled = true;
+    downloadProgressEl.textContent = "Testando link do Spotify...";
+    downloadLogEl.textContent = "";
+    const response = await fetch("/api/spotify/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: spotifyUrl }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "Nao foi possivel extrair musicas desse link.");
+    }
+    const typeLabel = data.entity_type === "artist" ? "artista" : "playlist";
+    const sample = (data.sample || [])
+      .map((track) => [track.artist, track.title].filter(Boolean).join(" - "))
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(" | ");
+    downloadProgressEl.textContent = `Spotify OK: ${typeLabel} "${data.name || "sem nome"}" com ${data.count} musicas.`;
+    downloadLogEl.textContent = sample ? `Amostra: ${sample}` : "";
+  } catch (error) {
+    downloadProgressEl.textContent = "Falha ao testar Spotify.";
+    downloadLogEl.textContent = friendlyError(error);
+  } finally {
+    testSpotifyLinkEl.disabled = false;
+  }
+}
+
 async function cancelDownload() {
   if (!activeDownloadTaskId) return;
   cancelDownloadEl.disabled = true;
@@ -1018,6 +1053,7 @@ startConversionEl.addEventListener("click", startConversion);
 cancelConversionEl.addEventListener("click", cancelConversion);
 startDownloadEl.addEventListener("click", startDownload);
 cancelDownloadEl.addEventListener("click", cancelDownload);
+testSpotifyLinkEl.addEventListener("click", testSpotifyLink);
 downloadSourceEl.addEventListener("change", updateDownloadSourcePanels);
 loadSheetEl.addEventListener("click", loadSheetPreview);
 validateSheetEl.addEventListener("click", validateSheetRows);

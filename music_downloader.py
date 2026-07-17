@@ -624,6 +624,8 @@ def spotify_embed_http_get_text(url: str, timeout: int = 20) -> Optional[str]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "https://open.spotify.com/",
     }
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
@@ -632,6 +634,24 @@ def spotify_embed_http_get_text(url: str, timeout: int = 20) -> Optional[str]:
     except Exception as e:
         log_error(f"[SPOTIFY_EMBED] HTTP error {url} :: {e}")
         return None
+
+def spotify_public_html_candidates(entity_type: str, entity_id: str) -> List[str]:
+    return [
+        f"https://open.spotify.com/embed/{entity_type}/{entity_id}",
+        f"https://open.spotify.com/embed/{entity_type}/{entity_id}?utm_source=generator",
+        f"https://open.spotify.com/{entity_type}/{entity_id}",
+    ]
+
+def spotify_fetch_public_html(entity_type: str, entity_id: str, timeout: int = 20) -> Tuple[str, Optional[str]]:
+    last_url = ""
+    for url in spotify_public_html_candidates(entity_type, entity_id):
+        last_url = url
+        log(f"🌐 Lendo {entity_type} do Spotify: {url}")
+        html_text = spotify_embed_http_get_text(url, timeout=timeout)
+        if html_text:
+            log(f"Spotify HTML recebido: {len(html_text)} bytes de {url}")
+            return url, html_text
+    return last_url, None
 
 def spotify_extract_next_data(html_text: str) -> Optional[Dict[str, Any]]:
     m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html_text, flags=re.S | re.I)
@@ -795,10 +815,9 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
     if force_refresh and cached:
         log(f"🔄 Reescan ativo: ignorando cache do embed Spotify: {norm_url}")
 
-    embed_url = f"https://open.spotify.com/embed/{entity_type}/{entity_id}"
-    log(f"🌐 Lendo {entity_type} do embed Spotify: {embed_url}")
-    html_text = spotify_embed_http_get_text(embed_url, timeout=SPOTIFY_EMBED_TIMEOUT_SECONDS)
+    embed_url, html_text = spotify_fetch_public_html(entity_type, entity_id, timeout=SPOTIFY_EMBED_TIMEOUT_SECONDS)
     if not html_text:
+        log_error(f"[SPOTIFY_EMBED] Nenhum HTML recebido do Spotify: {norm_url}")
         return None
 
     if write_cache:
@@ -814,12 +833,16 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
         parsed = spotify_parse_embed_tracklist(next_data)
         if not parsed or not parsed.get("tracks"):
             parsed = spotify_parse_tracklist_deep(next_data)
+        log(f"Spotify parse __NEXT_DATA__: tracks={0 if not parsed else len(parsed.get('tracks') or [])}")
+    else:
+        log_error(f"[SPOTIFY_EMBED] __NEXT_DATA__ nao encontrado em {embed_url}")
 
     if not parsed or not parsed.get("tracks"):
         parsed = spotify_parse_embed_tracklist_from_html(html_text)
+        log(f"Spotify parse HTML fallback: tracks={len(parsed.get('tracks') or [])}")
 
     if not parsed.get("tracks"):
-        log_error(f"[SPOTIFY_EMBED] trackList empty: {embed_url}")
+        log_error(f"[SPOTIFY_EMBED] trackList empty: {embed_url} | html_bytes={len(html_text)}")
         return None
 
     result = {

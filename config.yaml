@@ -1,0 +1,83 @@
+# Configuracao principal do downloader.
+
+source:
+  google_sheet_csv: "https://docs.google.com/spreadsheets/d/1xZbHiiZdgzTNYUxG8Lzs-UwRupYu2_7DKVf3nLXb8U0/export?format=csv&gid=0"
+
+paths:
+  music_dir: "C:/Users/rafa/Music/google"
+  state_dir: "C:/Users/rafa/Music"
+
+execution:
+  # Pode deixar false aqui e usar argumentos no .bat quando quiser.
+  reescan_list: true
+  dry_run: false
+  tagmusic: false
+  tag_force: false
+  only_row: null
+  only_url: null
+  log_level: "INFO" # DEBUG, INFO ou QUIET
+
+network:
+  disable_ssl_verify: true
+
+audio:
+  format: "mp3" # mp3 ou m4a
+  quality: 320
+  detect_bpm: false
+  bpm_seconds: 20
+  embed_metadata: false
+  embed_thumbnail: false
+  auto_tag_after_download: true
+  auto_tag_force: false
+
+conversion:
+  enable: false
+  conversion_only: false
+  verbose: false
+  music_dir: "C:/Users/rafa/Music/google"
+  source_format: "mp4"
+  destination_format: "mp3"
+  dry_run: false
+  delete_source: true
+  workers: 4
+  ffmpeg_threads: 4
+
+spotify:
+  mode: "EMBED" # EMBED, INDEX_ONLY, YOUTUBE_ONLY ou OFF
+  embed_timeout_seconds: 20
+  artist_mode: "top_tracks" # top_tracks ou discography
+  artist_market: "BR"
+  artist_album_groups:
+    - "album"
+    - "single"
+  artist_max_albums: null
+  artist_max_tracks: null
+  credentials_file: "spotify_secrets.yaml"
+  client_id: null
+  client_secret: null
+
+history:
+  mark_collection_done_with_failures: false
+  max_failures_to_mark_done: 2
+
+ytdlp:
+  verbose: true
+  format: "bestaudio/best"
+  query_template: "{artist} {title} {term}"
+  search_results: 3
+  player_client: "android"
+  player_clients:
+    - "android"
+    - "web"
+    - "ios"
+  concurrent_fragments: 8
+  extractor_retries: 3
+  remote_components:
+    - "ejs:github"
+  cookies_from_browser: null # edge, chrome, firefox, off ou null
+  search_terms:
+    - "extended"
+    - "official audio"
+    - "official music video"
+    - "lyrics"
+    - "audio"

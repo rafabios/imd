@@ -368,6 +368,32 @@ def environment_payload() -> Dict[str, Any]:
     return {"ok": True, "checks": checks}
 
 
+def spotify_check_payload(url: str) -> Dict[str, Any]:
+    url = str(url or "").strip()
+    if not url:
+        return {"ok": False, "error": "Informe um link do Spotify."}
+    try:
+        import music_downloader
+
+        collection = music_downloader.spotify_embed_fetch_collection(url, force_refresh=True, write_cache=False)
+        if not collection or not collection.get("tracks"):
+            return {
+                "ok": False,
+                "error": "Nao foi possivel extrair musicas desse link.",
+                "url": music_downloader.normalize_spotify_url(url),
+            }
+        return {
+            "ok": True,
+            "url": collection.get("url"),
+            "name": collection.get("name") or "",
+            "entity_type": collection.get("entity_type") or "",
+            "count": len(collection.get("tracks") or []),
+            "sample": (collection.get("tracks") or [])[:5],
+        }
+    except Exception as e:
+        return {"ok": False, "error": format_error(e), "url": url}
+
+
 def start_conversion_task() -> Dict[str, Any]:
     current = latest_task("conversion")
     if current and current.status in ("pending", "running", "canceling"):
@@ -803,6 +829,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 payload = self.read_json_body()
                 result = start_download_task(payload.get("options") or {})
                 self.send_json(result, status=200 if result.get("ok") else 409)
+            except Exception as e:
+                self.send_json({"ok": False, "error": format_error(e)}, status=500)
+            return
+        if parsed.path == "/api/spotify/check":
+            try:
+                payload = self.read_json_body()
+                result = spotify_check_payload(str(payload.get("url") or ""))
+                self.send_json(result, status=200 if result.get("ok") else 400)
             except Exception as e:
                 self.send_json({"ok": False, "error": format_error(e)}, status=500)
             return

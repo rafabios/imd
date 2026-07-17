@@ -19,9 +19,36 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
+CloseApplications=yes
+RestartApplications=no
+SetupLogging=yes
 
 [Files]
 Source: "..\dist\IMD\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: files; Name: "{app}\IMD.exe"
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\web"
+Type: filesandordirs; Name: "{app}\vendor"
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.pyd"
+Type: files; Name: "{app}\*.manifest"
+Type: files; Name: "{app}\base_library.zip"
+Type: files; Name: "{app}\config.sample.yaml"
+Type: files; Name: "{app}\spotify_secrets.sample.yaml"
+
+[UninstallDelete]
+Type: files; Name: "{app}\IMD.exe"
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\web"
+Type: filesandordirs; Name: "{app}\vendor"
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.pyd"
+Type: files; Name: "{app}\*.manifest"
+Type: files; Name: "{app}\base_library.zip"
+Type: files; Name: "{app}\config.sample.yaml"
+Type: files; Name: "{app}\spotify_secrets.sample.yaml"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
