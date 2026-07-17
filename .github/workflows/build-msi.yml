@@ -1,4 +1,4 @@
-name: Build Windows MSI
+name: Build Windows Installers
 
 on:
   workflow_dispatch:
@@ -24,8 +24,8 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
-  build-msi:
-    name: Build MSI
+  build-installers:
+    name: Build Windows installers
     runs-on: windows-latest
 
     steps:
@@ -120,6 +120,33 @@ jobs:
           Copy-Item $msiPath "dist\IMD-Insane-Music-Downloader-latest.msi" -Force
           Write-Host "MSI gerado: $($msi.FullName) ($([math]::Round($msi.Length / 1MB, 2)) MB)"
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build EXE setup wizard
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          if (!(Test-Path $iscc)) {
+            throw "Inno Setup Compiler nao encontrado."
+          }
+          & $iscc "packaging\IMDInstaller.iss"
+          $setupPath = "dist\IMD-Insane-Music-Downloader-$env:PRODUCT_VERSION-Setup.exe"
+          if (!(Test-Path $setupPath)) {
+            throw "Setup EXE nao foi gerado: $setupPath"
+          }
+          $setup = Get-Item $setupPath
+          if ($setup.Length -lt 1000000) {
+            throw "Setup EXE gerado parece pequeno demais: $($setup.Length) bytes"
+          }
+          Copy-Item $setupPath "dist\IMD-Insane-Music-Downloader-latest-Setup.exe" -Force
+          Write-Host "Setup EXE gerado: $($setup.FullName) ($([math]::Round($setup.Length / 1MB, 2)) MB)"
+
       - name: Smoke test MSI install
         shell: pwsh
         run: |
@@ -139,12 +166,55 @@ jobs:
             throw "Desinstalacao MSI falhou com exit code $($uninstall.ExitCode). Veja dist\uninstall.log"
           }
 
-      - name: Upload MSI artifact
+      - name: Smoke test EXE setup install
+        shell: pwsh
+        run: |
+          $setupPath = (Get-ChildItem dist\*-Setup.exe | Where-Object { $_.Name -notmatch "latest" } | Select-Object -First 1).FullName
+          $installDir = Join-Path $env:LOCALAPPDATA "IMD Insane Music Downloader"
+          $installedExe = Join-Path $installDir "IMD.exe"
+          $configPath = Join-Path $installDir "config.yaml"
+          $install = Start-Process -FilePath $setupPath -ArgumentList @("/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Instalacao EXE falhou com exit code $($install.ExitCode)."
+          }
+          if (!(Test-Path $installedExe)) {
+            throw "IMD.exe nao encontrado apos instalar EXE: $installedExe"
+          }
+          if (!(Test-Path $configPath)) {
+            throw "config.yaml nao foi criado pelo instalador EXE: $configPath"
+          }
+          $configText = Get-Content -Raw $configPath
+          if ($configText -notmatch [regex]::Escape(($env:USERPROFILE -replace "\\", "/") + "/Music/IMD")) {
+            throw "config.yaml nao contem a pasta de musicas esperada."
+          }
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          if (Test-Path $uninstaller) {
+            $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES") -Wait -PassThru
+            if ($uninstall.ExitCode -ne 0) {
+              throw "Desinstalacao EXE falhou com exit code $($uninstall.ExitCode)."
+            }
+          }
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist\*.msi, dist\*.exe |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = Get-FileHash $_.FullName -Algorithm SHA256
+              "$($hash.Hash)  $($_.Name)"
+            } |
+            Set-Content -Encoding utf8 dist\SHA256SUMS.txt
+
+      - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: IMD-Insane-Music-Downloader-MSI
+          name: IMD-Insane-Music-Downloader-Windows-Installers
           if-no-files-found: error
-          path: dist/*.msi
+          path: |
+            dist/*.msi
+            dist/*.exe
+            dist/SHA256SUMS.txt
 
       - name: Upload packaging diagnostics
         if: failure()
@@ -158,11 +228,14 @@ jobs:
             dist/install.log
             dist/uninstall.log
 
-      - name: Attach MSI to GitHub Release
+      - name: Attach installers to GitHub Release
         if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           name: IMD Insane Music Downloader ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           generate_release_notes: true
-          files: dist/*.msi
+          files: |
+            dist/*.msi
+            dist/*.exe
+            dist/SHA256SUMS.txt
