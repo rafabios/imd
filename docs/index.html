@@ -23,6 +23,7 @@
       <nav class="nav-links" aria-label="Navegacao">
         <a href="#features">Recursos</a>
         <a href="#install">Instalar</a>
+        <a href="#manual">Manual</a>
         <a href="#faq">FAQ</a>
         <a class="nav-cta" href="#download">Baixar</a>
       </nav>
@@ -39,10 +40,10 @@
             Baixe, converta, revise e organize musicas com uma interface simples no navegador, sem precisar mexer em terminal.
           </p>
           <div class="hero-actions">
-            <a class="primary-button" href="#download">Baixar instalador MSI</a>
-            <a class="secondary-button" href="#install">Como instalar</a>
+            <a class="primary-button" href="#download">Baixar Setup.exe</a>
+            <a class="secondary-button" href="#manual">Manual passo a passo</a>
           </div>
-          <p class="hero-note">Instala por usuario, abre em localhost e usa suas proprias configuracoes.</p>
+          <p class="hero-note">Instala por usuario, configura suas pastas e abre o painel local automaticamente.</p>
         </div>
       </section>
 
@@ -78,41 +79,100 @@
       <section id="install" class="section install-section">
         <div class="install-copy">
           <p class="eyebrow">Instalacao</p>
-          <h2>Baixe, instale e abra pelo Menu Iniciar</h2>
+          <h2>Baixe o Setup.exe e siga o assistente</h2>
           <p>
-            O instalador MSI inclui o aplicativo e dependencias principais. Na primeira abertura, o IMD cria um arquivo de configuracao inicial para voce ajustar pelo proprio painel.
+            O instalador recomendado e o <code>Setup.exe</code>. Ele inclui o aplicativo, dependencias principais e telas simples para escolher a pasta de musicas, a pasta de estado e a URL CSV da sua planilha do Google.
           </p>
         </div>
         <ol class="step-list">
           <li>
-            <strong>Baixe o MSI</strong>
+            <strong>Baixe o Setup.exe</strong>
             <span>Use sempre a versao mais recente publicada no GitHub Releases.</span>
           </li>
           <li>
-            <strong>Instale no Windows</strong>
-            <span>O app fica no seu usuario e cria um atalho no Menu Iniciar.</span>
+            <strong>Desbloqueie se o Windows pedir</strong>
+            <span>Arquivos baixados da internet podem vir bloqueados. O manual abaixo mostra exatamente onde clicar.</span>
           </li>
           <li>
-            <strong>Configure suas pastas</strong>
-            <span>Abra o painel, ajuste a planilha, pasta de musicas e formato de audio.</span>
+            <strong>Clique em Avancar</strong>
+            <span>Confirme as pastas sugeridas ou escolha outras. No final, marque para abrir o IMD.</span>
           </li>
         </ol>
+      </section>
+
+      <section id="manual" class="section manual-section">
+        <div class="section-heading">
+          <p class="eyebrow">Manual</p>
+          <h2>Passo a passo no Windows</h2>
+          <p>Use este roteiro se o Windows mostrar aviso de seguranca ou se for a primeira instalacao do IMD.</p>
+        </div>
+
+        <div class="manual-grid">
+          <article class="manual-card">
+            <span class="manual-number">1</span>
+            <h3>Baixe o instalador</h3>
+            <p>Clique em <strong>Baixar Setup.exe</strong> nesta pagina. O arquivo deve aparecer na pasta <code>Downloads</code>.</p>
+          </article>
+          <article class="manual-card">
+            <span class="manual-number">2</span>
+            <h3>Desbloqueie o arquivo</h3>
+            <p>Clique com o botao direito no <code>Setup.exe</code>, escolha <strong>Propriedades</strong>, marque <strong>Desbloquear</strong> e clique em <strong>Aplicar</strong>.</p>
+          </article>
+          <article class="manual-card">
+            <span class="manual-number">3</span>
+            <h3>Execute o Setup.exe</h3>
+            <p>Duas vezes clique no arquivo. Se aparecer o SmartScreen, clique em <strong>Mais informacoes</strong> e depois em <strong>Executar assim mesmo</strong>.</p>
+          </article>
+          <article class="manual-card">
+            <span class="manual-number">4</span>
+            <h3>Escolha as pastas</h3>
+            <p>Na tela de instalacao, mantenha a pasta de musicas sugerida ou selecione outra. Faca o mesmo para a pasta de estado.</p>
+          </article>
+          <article class="manual-card">
+            <span class="manual-number">5</span>
+            <h3>Informe a planilha</h3>
+            <p>Cole a URL CSV do Google Sheets. Se ainda nao tiver o link, deixe o valor sugerido e configure depois no painel.</p>
+          </article>
+          <article class="manual-card">
+            <span class="manual-number">6</span>
+            <h3>Abra o painel</h3>
+            <p>No final, deixe marcado <strong>Abrir o IMD agora</strong>. O painel abre no navegador em <code>127.0.0.1:8765</code>.</p>
+          </article>
+        </div>
+
+        <div class="help-panel">
+          <h3>Como pegar a URL CSV da planilha</h3>
+          <ol>
+            <li>Abra sua planilha no Google Sheets.</li>
+            <li>Garanta que ela esteja acessivel para quem tiver o link, ou publicada para acesso CSV.</li>
+            <li>Use um link no formato <code>https://docs.google.com/spreadsheets/d/ID_DA_PLANILHA/export?format=csv&gid=0</code>.</li>
+            <li>Cole esse link no instalador ou em <strong>Configuracoes</strong> dentro do painel.</li>
+          </ol>
+        </div>
       </section>
 
       <section id="download" class="section release-band">
         <div>
           <p class="eyebrow">Download</p>
           <h2>Pronto para testar?</h2>
-          <p>Pegue a ultima versao, instale e abra o painel local pelo atalho do Windows.</p>
+          <p>Para uso normal, baixe o Setup.exe. O MSI continua disponivel para instalacao tecnica ou automatizada.</p>
         </div>
-        <a
-          class="primary-button"
-          href="https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest.msi"
-        >
-          Baixar MSI
-        </a>
+        <div class="download-actions">
+          <a
+            class="primary-button"
+            href="https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest-Setup.exe"
+          >
+            Baixar Setup.exe
+          </a>
+          <a
+            class="secondary-button light-button"
+            href="https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest.msi"
+          >
+            Baixar MSI
+          </a>
+        </div>
         <p class="download-placeholder">
-          Sempre baixa o instalador mais recente publicado no GitHub Releases.
+          Sempre baixa os instaladores mais recentes publicados no GitHub Releases.
         </p>
       </section>
 
@@ -125,6 +185,10 @@
           <article>
             <h3>O IMD roda na internet?</h3>
             <p>Nao. Ele abre uma pagina local em <code>127.0.0.1</code>, dentro do seu computador.</p>
+          </article>
+          <article>
+            <h3>Qual arquivo devo baixar?</h3>
+            <p>Baixe o <code>Setup.exe</code>. Ele tem assistente de instalacao e configuracao inicial.</p>
           </article>
           <article>
             <h3>Preciso instalar Python?</h3>

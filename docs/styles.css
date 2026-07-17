@@ -214,6 +214,12 @@ h3 {
   color: #ffffff;
 }
 
+.light-button {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
 .hero-note {
   margin: 16px 0 0;
   color: #b9c8d1;
@@ -315,6 +321,72 @@ h3 {
   line-height: 1.5;
 }
 
+.manual-section {
+  padding-top: 34px;
+}
+
+.manual-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.manual-card,
+.help-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(22, 36, 51, 0.1);
+}
+
+.manual-card {
+  min-height: 230px;
+  padding: 22px;
+}
+
+.manual-number {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--gold), var(--hot));
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.manual-card p,
+.help-panel li {
+  color: var(--muted);
+  line-height: 1.58;
+}
+
+.manual-card strong {
+  color: var(--text);
+}
+
+.help-panel {
+  margin-top: 18px;
+  padding: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 251, 0.96)),
+    var(--accent-soft);
+}
+
+.help-panel ol {
+  display: grid;
+  gap: 10px;
+  padding-left: 22px;
+  margin: 0;
+}
+
+.download-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .release-band {
   justify-content: space-between;
   padding: 34px;
@@ -384,7 +456,8 @@ h3 {
 
   .feature-grid,
   .faq-grid,
-  .install-section {
+  .install-section,
+  .manual-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -400,7 +473,8 @@ h3 {
   }
 
   .hero-actions a,
-  .release-band a {
+  .release-band a,
+  .download-actions {
     width: 100%;
   }
 

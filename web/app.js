@@ -63,6 +63,7 @@ const historySummaryEl = document.querySelector("#history-summary");
 const historySearchEl = document.querySelector("#history-search");
 const historyFileFilterEl = document.querySelector("#history-file-filter");
 const historyLogEl = document.querySelector("#history-log");
+const downloadShortcutEls = Array.from(document.querySelectorAll("[data-download-shortcut]"));
 
 let currentConfig = {};
 let fieldTypes = new Map();
@@ -573,6 +574,12 @@ function updateDownloadSourcePanels() {
   });
 }
 
+function openDownloadShortcut(source) {
+  downloadSourceEl.value = source;
+  updateDownloadSourcePanels();
+  document.querySelector("#download").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function requireValue(input, message) {
   const value = input.value.trim();
   if (!value) throw new Error(message);
@@ -1049,6 +1056,9 @@ historySearchEl.addEventListener("input", renderHistory);
 historyFileFilterEl.addEventListener("change", renderHistory);
 conversionLogFilterEl.addEventListener("input", () => renderTaskLog(conversionLogEl, conversionLogs, conversionLogFilterEl.value));
 downloadLogFilterEl.addEventListener("input", () => renderTaskLog(downloadLogEl, downloadLogs, downloadLogFilterEl.value));
+downloadShortcutEls.forEach((button) => {
+  button.addEventListener("click", () => openDownloadShortcut(button.dataset.downloadShortcut));
+});
 
 updateDownloadSourcePanels();
 loadConfig();

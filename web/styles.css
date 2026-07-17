@@ -58,7 +58,7 @@ body {
   display: flex;
   gap: 12px;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 18px;
   padding: 10px 8px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -97,6 +97,30 @@ body {
 .nav-list {
   display: grid;
   gap: 6px;
+}
+
+.sidebar-actions {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.sidebar-action {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 10px;
+  text-align: left;
+  color: #ffffff;
+}
+
+.spotify-action {
+  background: linear-gradient(135deg, #1db954, #087161);
+  box-shadow: 0 12px 26px rgba(8, 113, 97, 0.25);
+}
+
+.youtube-action {
+  background: linear-gradient(135deg, #ff384d, #a5162a);
+  box-shadow: 0 12px 26px rgba(165, 22, 42, 0.24);
 }
 
 .nav-list a {
@@ -206,6 +230,54 @@ h2 {
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
   gap: 18px;
   margin-bottom: 18px;
+}
+
+.home-section {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.start-panel {
+  grid-row: span 2;
+  display: grid;
+  align-content: start;
+}
+
+.status-panel {
+  min-height: 0;
+}
+
+.start-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.start-action {
+  display: grid;
+  justify-items: start;
+  min-height: 104px;
+  padding: 18px;
+  border-radius: 12px;
+  color: #ffffff;
+}
+
+.start-action span,
+.start-action small {
+  display: block;
+}
+
+.start-action span {
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.start-action small {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.86;
 }
 
 .feature-grid {
@@ -793,9 +865,14 @@ button:disabled {
   }
 
   .section-grid,
+  .home-section,
   .feature-grid,
   .config-fields {
     grid-template-columns: 1fr;
+  }
+
+  .start-panel {
+    grid-row: auto;
   }
 }
 

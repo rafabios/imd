@@ -1,0 +1,18 @@
+{
+  "id": "f5735b8e-79c2-4af7-b76a-b11fa4b15f05",
+  "kind": "http-test",
+  "status": "succeeded",
+  "returncode": 0,
+  "started_at": "2026-06-25T21:11:50",
+  "finished_at": "2026-06-25T21:11:50",
+  "logs": [
+    "Iniciando tarefa: C:\\Program Files\\Python312\\python.exe -c print('status endpoint')",
+    "status endpoint"
+  ],
+  "progress": {},
+  "command": [
+    "C:\\Program Files\\Python312\\python.exe",
+    "-c",
+    "print('status endpoint')"
+  ]
+}

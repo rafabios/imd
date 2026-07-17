@@ -16,8 +16,12 @@
             <small>Insane Music Downloader</small>
           </div>
         </div>
+        <div class="sidebar-actions" aria-label="Downloads rapidos">
+          <button class="sidebar-action spotify-action" type="button" data-download-shortcut="spotify_playlist">Download Spotify</button>
+          <button class="sidebar-action youtube-action" type="button" data-download-shortcut="youtube_search">Download YouTube</button>
+        </div>
         <nav class="nav-list" aria-label="Areas">
-          <a class="active" href="#dashboard">Visao geral</a>
+          <a class="active" href="#dashboard">Inicio</a>
           <a href="#config">Configuracoes</a>
           <a href="#conversion">Conversao</a>
           <a href="#download">Download</a>
@@ -34,13 +38,30 @@
           <div>
             <p class="eyebrow">Painel local</p>
             <h1>IMD Insane Music Downloader</h1>
-            <p class="hero-copy">Baixe, converta, revise e organize sua biblioteca em um painel unico.</p>
+            <p class="hero-copy">Escolha de onde vem a musica e comece o download.</p>
           </div>
           <div id="health" class="status-pill">Carregando</div>
         </header>
 
-        <section id="dashboard" class="section-grid">
-          <article class="panel summary-panel">
+        <section id="dashboard" class="home-section">
+          <article class="panel start-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Comecar</p>
+              <h2>Baixar musica</h2>
+            </div>
+            <div class="start-actions">
+              <button class="start-action spotify-action" type="button" data-download-shortcut="spotify_playlist">
+                <span>Spotify</span>
+                <small>Playlist ou artista</small>
+              </button>
+              <button class="start-action youtube-action" type="button" data-download-shortcut="youtube_search">
+                <span>YouTube</span>
+                <small>Artista e musica</small>
+              </button>
+            </div>
+          </article>
+
+          <article class="panel status-panel">
             <div class="panel-heading">
               <p class="eyebrow">Resumo</p>
               <h2>Estado atual</h2>
@@ -48,7 +69,7 @@
             <div id="summary" class="metric-grid"></div>
           </article>
 
-          <article class="panel">
+          <article class="panel status-panel">
             <div class="panel-heading">
               <p class="eyebrow">Saude</p>
               <h2>Configuracao</h2>
