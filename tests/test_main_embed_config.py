@@ -96,6 +96,35 @@ def test_spotify_url_normalization(app):
     assert app.normalize_spotify_url(url) == "https://open.spotify.com/playlist/4419fmChSKR2qkPFIsFTdg"
 
 
+def test_spotify_http_uses_certifi_ca_bundle(app, monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b"<html>ok</html>"
+
+    def fake_urlopen(request, timeout, context):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        captured["context"] = context
+        return FakeResponse()
+
+    monkeypatch.setattr(app.urllib.request, "urlopen", fake_urlopen)
+
+    result = app.spotify_embed_http_get_text("https://open.spotify.com/embed/playlist/abc", timeout=7)
+
+    assert result == "<html>ok</html>"
+    assert captured["timeout"] == 7
+    assert isinstance(captured["context"], app.ssl.SSLContext)
+    assert captured["context"].verify_mode == app.ssl.CERT_REQUIRED
+
+
 def test_spotify_parse_tracklist_deep_handles_nested_tracks(app):
     payload = {
         "props": {

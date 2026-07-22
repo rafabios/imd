@@ -337,6 +337,25 @@ def test_environment_payload_contains_checks():
     assert any(check["name"] == "Python" for check in payload["checks"])
 
 
+def test_open_music_folder_uses_configured_path(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    music_dir = tmp_path / "music"
+    config = app_server.read_yaml_file(app_server.CONFIG_FILE)
+    config["paths"]["music_dir"] = str(music_dir)
+    app_server.write_yaml_file(config_path, config)
+    opened = []
+
+    monkeypatch.setattr(app_server, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(app_server.sys, "platform", "win32")
+    monkeypatch.setattr(app_server.os, "startfile", lambda path: opened.append(path), raising=False)
+
+    result = app_server.open_music_folder()
+
+    assert result == {"ok": True, "path": str(music_dir.resolve())}
+    assert music_dir.is_dir()
+    assert opened == [str(music_dir.resolve())]
+
+
 def test_http_health_endpoint():
     server = ThreadingHTTPServer(("127.0.0.1", 0), app_server.AppHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

@@ -123,6 +123,11 @@ body {
   box-shadow: 0 12px 26px rgba(165, 22, 42, 0.24);
 }
 
+.folder-action {
+  background: linear-gradient(135deg, #f0a928, #c46c12);
+  box-shadow: 0 12px 26px rgba(196, 108, 18, 0.24);
+}
+
 .nav-list a {
   position: relative;
   color: #b7c5cf;

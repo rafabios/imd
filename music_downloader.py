@@ -20,6 +20,7 @@ from typing import Set, Optional, List, Dict, Any, Tuple
 import pandas as pd
 import yaml
 import yt_dlp
+import certifi
 from tqdm import tqdm
 
 try:
@@ -629,10 +630,20 @@ def spotify_embed_http_get_text(url: str, timeout: int = 20) -> Optional[str]:
     }
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # A build empacotada pelo PyInstaller nao herda necessariamente o
+        # repositorio de certificados do Windows. Use explicitamente o bundle
+        # mantido pelo certifi, que tambem e incluido na distribuicao.
+        ssl_context = (
+            ssl._create_unverified_context()
+            if DISABLE_SSL_VERIFY
+            else ssl.create_default_context(cafile=certifi.where())
+        )
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             return resp.read().decode("utf-8", errors="replace")
     except Exception as e:
-        log_error(f"[SPOTIFY_EMBED] HTTP error {url} :: {e}")
+        message = f"[SPOTIFY_EMBED] HTTP error {url} :: {e}"
+        log_error(message)
+        log(message)
         return None
 
 def spotify_public_html_candidates(entity_type: str, entity_id: str) -> List[str]:

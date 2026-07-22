@@ -3,6 +3,7 @@ import cgi
 import csv
 import json
 import mimetypes
+import os
 import re
 import shutil
 import ssl
@@ -366,6 +367,25 @@ def environment_payload() -> Dict[str, Any]:
         {"name": "Google Sheets URL", "ok": bool(source.get("google_sheet_csv")), "detail": str(source.get("google_sheet_csv") or "")},
     ]
     return {"ok": True, "checks": checks}
+
+
+def open_music_folder() -> Dict[str, Any]:
+    config = read_yaml_file(CONFIG_FILE)
+    music_dir = str((config.get("paths") or {}).get("music_dir") or "").strip()
+    if not music_dir:
+        return {"ok": False, "error": "Configure paths.music_dir antes de abrir a pasta."}
+
+    folder = Path(music_dir).expanduser().resolve()
+    folder.mkdir(parents=True, exist_ok=True)
+
+    if sys.platform == "win32":
+        os.startfile(str(folder))
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(folder)])
+    else:
+        subprocess.Popen(["xdg-open", str(folder)])
+
+    return {"ok": True, "path": str(folder)}
 
 
 def spotify_check_payload(url: str) -> Dict[str, Any]:
@@ -836,6 +856,13 @@ class AppHandler(BaseHTTPRequestHandler):
             try:
                 payload = self.read_json_body()
                 result = spotify_check_payload(str(payload.get("url") or ""))
+                self.send_json(result, status=200 if result.get("ok") else 400)
+            except Exception as e:
+                self.send_json({"ok": False, "error": format_error(e)}, status=500)
+            return
+        if parsed.path == "/api/music-folder/open":
+            try:
+                result = open_music_folder()
                 self.send_json(result, status=200 if result.get("ok") else 400)
             except Exception as e:
                 self.send_json({"ok": False, "error": format_error(e)}, status=500)

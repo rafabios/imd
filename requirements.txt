@@ -4,6 +4,7 @@ tqdm==4.66.5
 librosa==0.10.2.post1
 numpy==1.26.4
 requests
+certifi
 urllib3<2
 mutagen
 PyYAML

@@ -65,6 +65,7 @@ const historySearchEl = document.querySelector("#history-search");
 const historyFileFilterEl = document.querySelector("#history-file-filter");
 const historyLogEl = document.querySelector("#history-log");
 const downloadShortcutEls = Array.from(document.querySelectorAll("[data-download-shortcut]"));
+const openMusicFolderEls = Array.from(document.querySelectorAll("[data-open-music-folder]"));
 
 let currentConfig = {};
 let fieldTypes = new Map();
@@ -581,6 +582,22 @@ function openDownloadShortcut(source) {
   document.querySelector("#download").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+async function openMusicFolder() {
+  openMusicFolderEls.forEach((button) => { button.disabled = true; });
+  try {
+    const response = await fetch("/api/music-folder/open", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "Falha ao abrir a pasta de musicas");
+    }
+  } catch (error) {
+    healthEl.textContent = friendlyError(error);
+    healthEl.className = "status-pill error";
+  } finally {
+    openMusicFolderEls.forEach((button) => { button.disabled = false; });
+  }
+}
+
 function requireValue(input, message) {
   const value = input.value.trim();
   if (!value) throw new Error(message);
@@ -1094,6 +1111,9 @@ conversionLogFilterEl.addEventListener("input", () => renderTaskLog(conversionLo
 downloadLogFilterEl.addEventListener("input", () => renderTaskLog(downloadLogEl, downloadLogs, downloadLogFilterEl.value));
 downloadShortcutEls.forEach((button) => {
   button.addEventListener("click", () => openDownloadShortcut(button.dataset.downloadShortcut));
+});
+openMusicFolderEls.forEach((button) => {
+  button.addEventListener("click", openMusicFolder);
 });
 
 updateDownloadSourcePanels();
