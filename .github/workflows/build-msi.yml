@@ -93,7 +93,15 @@ jobs:
       - name: Smoke test packaged UI
         shell: pwsh
         run: |
-          $app = Start-Process -FilePath dist\IMD\IMD.exe -ArgumentList @("--host","127.0.0.1","--port","8876") -PassThru
+          # O app cria config.yaml e runtime_updates na primeira execucao. Rode o
+          # smoke test em uma copia descartavel para nao contaminar os instaladores.
+          $smokeDir = Join-Path $env:RUNNER_TEMP "imd-packaged-ui-smoke"
+          if (Test-Path $smokeDir) {
+            Remove-Item -LiteralPath $smokeDir -Recurse -Force
+          }
+          Copy-Item -Path "dist\IMD" -Destination $smokeDir -Recurse -Force
+          $smokeExe = Join-Path $smokeDir "IMD.exe"
+          $app = Start-Process -FilePath $smokeExe -ArgumentList @("--host","127.0.0.1","--port","8876") -PassThru
           try {
             Start-Sleep -Seconds 5
             $response = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8876/ -TimeoutSec 15
@@ -102,6 +110,22 @@ jobs:
             }
           } finally {
             Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $smokeDir -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Verify clean portable bundle
+        shell: pwsh
+        run: |
+          $runtimeFiles = @(
+            "dist\IMD\config.yaml",
+            "dist\IMD\spotify_secrets.yaml",
+            "dist\IMD\runtime_updates",
+            "dist\IMD\config_backups",
+            "dist\IMD\imports",
+            "dist\IMD\tasks"
+          ) | Where-Object { Test-Path $_ }
+          if ($runtimeFiles) {
+            throw "O bundle contem arquivos gerados em runtime e nao pode ser empacotado: $($runtimeFiles -join ', ')"
           }
 
       - name: Install WiX Toolset

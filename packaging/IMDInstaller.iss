@@ -24,7 +24,7 @@ RestartApplications=no
 SetupLogging=yes
 
 [Files]
-Source: "..\dist\IMD\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\IMD\*"; DestDir: "{app}"; Excludes: "config.yaml,spotify_secrets.yaml,runtime_updates\*,config_backups\*,imports\*,tasks\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 Type: files; Name: "{app}\IMD.exe"

@@ -8,8 +8,19 @@ def test_setup_preserves_existing_config_and_desktop_icon_is_default():
     source = (ROOT / "packaging" / "IMDInstaller.iss").read_text(encoding="utf-8")
 
     assert "if FileExists(ConfigPath) then begin" in source
+    assert 'Excludes: "config.yaml,spotify_secrets.yaml,runtime_updates\\*,config_backups\\*,imports\\*,tasks\\*"' in source
     desktop_task = next(line for line in source.splitlines() if line.startswith('Name: "desktopicon"'))
     assert "unchecked" not in desktop_task
+
+
+def test_packaged_ui_smoke_uses_disposable_copy_and_checks_bundle_cleanliness():
+    source = (ROOT / ".github" / "workflows" / "build-msi.yml").read_text(encoding="utf-8")
+
+    assert 'Copy-Item -Path "dist\\IMD" -Destination $smokeDir -Recurse -Force' in source
+    assert "Start-Process -FilePath $smokeExe" in source
+    assert "Remove-Item -LiteralPath $smokeDir -Recurse -Force" in source
+    assert '"dist\\IMD\\config.yaml"' in source
+    assert '"dist\\IMD\\runtime_updates"' in source
 
 
 def test_web_rows_do_not_render_api_values_with_inner_html():
