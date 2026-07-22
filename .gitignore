@@ -49,6 +49,11 @@ coverage.xml
 *.py.cover
 .hypothesis/
 .pytest_cache/
+.pytest-tmp/
+tasks/
+imports/
+config_backups/
+runtime_updates/
 cover/
 
 # Translations
@@ -150,6 +155,8 @@ activemq-data/
 # Environments
 .env
 .envrc
+config.yaml
+spotify_secrets.yaml
 .venv
 env/
 venv/

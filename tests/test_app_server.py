@@ -3,13 +3,24 @@ import shutil
 import sys
 import threading
 import uuid
+import urllib.error
 import urllib.request
+from io import BytesIO
 from http.server import ThreadingHTTPServer
+
+import pytest
 
 import app_server
 
 
-def setup_function():
+@pytest.fixture(autouse=True)
+def isolate_app_storage(monkeypatch, tmp_path):
+    app_server.TASKS.clear()
+    app_server.IMPORTS.clear()
+    monkeypatch.setattr(app_server, "TASK_DIR", tmp_path / "tasks")
+    monkeypatch.setattr(app_server, "IMPORT_DIR", tmp_path / "imports")
+    monkeypatch.setattr(app_server, "BACKUP_DIR", tmp_path / "backups")
+    yield
     app_server.TASKS.clear()
     app_server.IMPORTS.clear()
 
@@ -197,6 +208,27 @@ def test_start_download_task_rejects_parallel_download(monkeypatch):
     assert result["task"]["id"] == "running-download"
 
 
+def test_pending_download_is_not_hidden_by_older_finished_task():
+    app_server.TASKS["finished"] = app_server.BackgroundTask(
+        id="finished",
+        kind="download",
+        command=["python"],
+        status="succeeded",
+        started_at="2099-01-01T00:00:00",
+    )
+    app_server.TASKS["pending"] = app_server.BackgroundTask(
+        id="pending",
+        kind="download",
+        command=["python"],
+        status="pending",
+    )
+
+    result = app_server.start_download_task({"dry_run": True})
+
+    assert result["ok"] is False
+    assert result["task"]["id"] == "pending"
+
+
 def test_start_import_download_task_builds_input_file_command(monkeypatch, tmp_path):
     imported_csv = tmp_path / "import.csv"
     imported_csv.write_text("Artista,Musica,(opcional) Tag/Genero,Spotify Playlist (link)\nA,T,G,\n", encoding="utf-8")
@@ -255,6 +287,48 @@ def test_task_persistence_roundtrip(monkeypatch, tmp_path):
     assert loaded.status == "succeeded"
     assert loaded.progress["rows"] == 2
     assert loaded.progress["failed"] == 1
+
+
+def test_load_persisted_running_task_marks_it_interrupted(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_server, "TASK_DIR", tmp_path)
+    task = app_server.BackgroundTask(
+        id="abandoned",
+        kind="download",
+        command=["python"],
+        status="running",
+        started_at="2026-01-01T00:00:00",
+    )
+    app_server.persist_task(task)
+    app_server.TASKS.clear()
+
+    app_server.load_persisted_tasks()
+
+    loaded = app_server.TASKS["abandoned"]
+    assert loaded.status == "interrupted"
+    assert loaded.finished_at
+    assert "interrompida" in loaded.logs[-1]
+    saved = json.loads((tmp_path / "abandoned.json").read_text(encoding="utf-8"))
+    assert saved["status"] == "interrupted"
+
+
+def test_cancel_task_persists_state_and_terminates_tree(monkeypatch):
+    class FakeProcess:
+        def poll(self):
+            return None
+
+    task = app_server.BackgroundTask(id="cancel-me", kind="download", command=["python"], status="running")
+    task.process = FakeProcess()
+    app_server.TASKS[task.id] = task
+    terminated = []
+    monkeypatch.setattr(app_server, "terminate_process_tree", lambda process: terminated.append(process))
+
+    result = app_server.cancel_task(task.id)
+
+    assert result["ok"] is True
+    assert result["task"]["status"] == "canceling"
+    assert terminated == [task.process]
+    saved = json.loads(app_server.task_file(task.id).read_text(encoding="utf-8"))
+    assert saved["status"] == "canceling"
 
 
 def test_validate_rows_reports_issues():
@@ -369,6 +443,29 @@ def test_http_health_endpoint():
         server.server_close()
 
     assert payload == {"ok": True, "app": "imd-insane-music-downloader"}
+
+
+def test_http_rejects_external_post_origin():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app_server.AppHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/api/music-folder/open"
+        request = urllib.request.Request(
+            url,
+            data=b"",
+            headers={"Origin": "https://example.test"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(request, timeout=5)
+        payload = json.loads(exc_info.value.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert exc_info.value.code == 403
+    assert payload["ok"] is False
 
 
 def test_http_config_post(monkeypatch, tmp_path):
@@ -488,6 +585,21 @@ def test_parse_csv_import(monkeypatch, tmp_path):
     assert result["rows"][0]["title"] == "T"
     assert result["rows"][0]["genre"] == "G"
     assert app_server.Path(result["csv_path"]).exists()
+
+
+def test_parse_xlsx_import(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_server, "IMPORT_DIR", tmp_path)
+    workbook = BytesIO()
+    app_server.pd.DataFrame([{"Artista": "A", "Musica": "T", "Genero": "G"}]).to_excel(
+        workbook,
+        index=False,
+    )
+
+    result = app_server.parse_import_file("tracks.xlsx", workbook.getvalue())
+
+    assert result["ok"] is True
+    assert result["rows"][0]["artist"] == "A"
+    assert result["rows"][0]["title"] == "T"
 
 
 def test_http_task_status_endpoint():

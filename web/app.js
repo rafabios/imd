@@ -97,7 +97,6 @@ const selectOptions = {
   "audio.format": ["mp3", "m4a"],
   "execution.log_level": ["DEBUG", "INFO", "QUIET"],
   "spotify.mode": ["EMBED", "INDEX_ONLY", "YOUTUBE_ONLY", "OFF"],
-  "spotify.artist_mode": ["top_tracks", "discography", "albums", "all"],
   "conversion.source_format": ["mp3", "m4a", "mp4", "flac", "wav", "ogg", "opus", "aac"],
   "conversion.destination_format": ["mp3", "m4a", "flac", "wav", "ogg", "opus", "aac"],
   "ytdlp.player_client": ["android", "web", "ios"],
@@ -155,8 +154,6 @@ const numberFields = new Set([
   "audio.quality",
   "audio.bpm_seconds",
   "spotify.embed_timeout_seconds",
-  "spotify.artist_max_albums",
-  "spotify.artist_max_tracks",
   "history.max_failures_to_mark_done",
   "ytdlp.search_results",
   "ytdlp.concurrent_fragments",
@@ -179,6 +176,37 @@ function friendlyError(error) {
     return "Servidor local desconectado. Feche e abra o start_ui.bat de novo, deixe a janela aberta e depois atualize esta pagina.";
   }
   return message;
+}
+
+function appendTextCell(row, value) {
+  const cell = document.createElement("td");
+  cell.textContent = value === null || value === undefined ? "" : String(value);
+  row.appendChild(cell);
+  return cell;
+}
+
+function spotifyLink(value) {
+  try {
+    const url = new URL(String(value || ""));
+    if (url.protocol !== "https:" || url.hostname !== "open.spotify.com") return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function appendSpotifyCell(row, value) {
+  const cell = document.createElement("td");
+  const href = spotifyLink(value);
+  if (href) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "abrir";
+    cell.appendChild(link);
+  }
+  row.appendChild(cell);
 }
 
 function fieldLabel(path) {
@@ -212,7 +240,11 @@ function renderSummary(summary) {
   Object.entries(summary).forEach(([key, value]) => {
     const item = document.createElement("div");
     item.className = "metric";
-    item.innerHTML = `<span>${labels[key] || key}</span><strong>${valueText(value)}</strong>`;
+    const label = document.createElement("span");
+    const strong = document.createElement("strong");
+    label.textContent = labels[key] || key;
+    strong.textContent = valueText(value);
+    item.append(label, strong);
     summaryEl.appendChild(item);
   });
 }
@@ -294,7 +326,9 @@ function renderConfigEditor(config) {
     const section = document.createElement("section");
     section.className = "config-section";
     section.dataset.section = sectionName;
-    section.innerHTML = `<h3>${labelText}</h3>`;
+    const heading = document.createElement("h3");
+    heading.textContent = labelText;
+    section.appendChild(heading);
 
     const fields = document.createElement("div");
     fields.className = "config-fields";
@@ -507,7 +541,11 @@ async function loadConfig() {
   } catch (error) {
     healthEl.textContent = "Erro";
     healthEl.className = "status-pill error";
-    validationEl.innerHTML = `<li class="error">${friendlyError(error)}</li>`;
+    validationEl.innerHTML = "";
+    const item = document.createElement("li");
+    item.className = "error";
+    item.textContent = friendlyError(error);
+    validationEl.appendChild(item);
   }
 }
 
@@ -703,7 +741,8 @@ async function testSpotifyLink() {
       .filter(Boolean)
       .slice(0, 3)
       .join(" | ");
-    downloadProgressEl.textContent = `Spotify OK: ${typeLabel} "${data.name || "sem nome"}" com ${data.count} musicas.`;
+    const partialWarning = data.partial_possible ? " O embed publico pode conter apenas parte da playlist." : "";
+    downloadProgressEl.textContent = `Spotify OK: ${typeLabel} "${data.name || "sem nome"}" com ${data.count} musicas.${partialWarning}`;
     downloadLogEl.textContent = sample ? `Amostra: ${sample}` : "";
   } catch (error) {
     downloadProgressEl.textContent = "Falha ao testar Spotify.";
@@ -736,7 +775,11 @@ function renderCounts(target, counts) {
   items.forEach(([label, value]) => {
     const item = document.createElement("div");
     item.className = "metric";
-    item.innerHTML = `<span>${label}</span><strong>${value || 0}</strong>`;
+    const labelElement = document.createElement("span");
+    const valueElement = document.createElement("strong");
+    labelElement.textContent = label;
+    valueElement.textContent = String(value || 0);
+    item.append(labelElement, valueElement);
     target.appendChild(item);
   });
 }
@@ -763,23 +806,34 @@ function renderSheetRows() {
   sheetRowsEl.innerHTML = "";
   visibleRows.forEach((row) => {
     const tr = document.createElement("tr");
-    const spotifyCell = row.spotify_url
-      ? `<a href="${row.spotify_url}" target="_blank" rel="noreferrer">abrir</a>`
-      : "";
-    tr.innerHTML = `
-      <td>${row.row_number}</td>
-      <td>
-        <div class="row-actions">
-          <input type="checkbox" data-sheet-select="${row.row_number}" ${selectedSheetRows.has(row.row_number) ? "checked" : ""} />
-          <button class="tiny-button" type="button" data-sheet-download="${row.row_number}">Baixar</button>
-        </div>
-      </td>
-      <td><span class="type-badge">${row.type}</span></td>
-      <td>${row.artist || ""}</td>
-      <td>${row.title || ""}</td>
-      <td>${row.genre || ""}</td>
-      <td>${spotifyCell}</td>
-    `;
+    appendTextCell(tr, row.row_number);
+
+    const actionsCell = document.createElement("td");
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.dataset.sheetSelect = String(row.row_number);
+    checkbox.checked = selectedSheetRows.has(row.row_number);
+    const button = document.createElement("button");
+    button.className = "tiny-button";
+    button.type = "button";
+    button.dataset.sheetDownload = String(row.row_number);
+    button.textContent = "Baixar";
+    actions.append(checkbox, button);
+    actionsCell.appendChild(actions);
+    tr.appendChild(actionsCell);
+
+    const typeCell = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "type-badge";
+    badge.textContent = valueText(row.type);
+    typeCell.appendChild(badge);
+    tr.appendChild(typeCell);
+    appendTextCell(tr, row.artist || "");
+    appendTextCell(tr, row.title || "");
+    appendTextCell(tr, row.genre || "");
+    appendSpotifyCell(tr, row.spotify_url);
     sheetRowsEl.appendChild(tr);
   });
   updateSelectedSheetButton();
@@ -787,24 +841,30 @@ function renderSheetRows() {
 
 function renderRows(target, rows, emptyMessage) {
   if (!rows.length) {
-    target.innerHTML = `<tr><td colspan="6">${emptyMessage}</td></tr>`;
+    target.innerHTML = "";
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 6;
+    cell.textContent = emptyMessage;
+    row.appendChild(cell);
+    target.appendChild(row);
     return;
   }
 
   target.innerHTML = "";
   rows.forEach((row) => {
     const tr = document.createElement("tr");
-    const spotifyCell = row.spotify_url
-      ? `<a href="${row.spotify_url}" target="_blank" rel="noreferrer">abrir</a>`
-      : "";
-    tr.innerHTML = `
-      <td>${row.row_number}</td>
-      <td><span class="type-badge">${row.type}</span></td>
-      <td>${row.artist || ""}</td>
-      <td>${row.title || ""}</td>
-      <td>${row.genre || ""}</td>
-      <td>${spotifyCell}</td>
-    `;
+    appendTextCell(tr, row.row_number);
+    const typeCell = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "type-badge";
+    badge.textContent = valueText(row.type);
+    typeCell.appendChild(badge);
+    tr.appendChild(typeCell);
+    appendTextCell(tr, row.artist || "");
+    appendTextCell(tr, row.title || "");
+    appendTextCell(tr, row.genre || "");
+    appendSpotifyCell(tr, row.spotify_url);
     target.appendChild(tr);
   });
 }
@@ -1000,13 +1060,16 @@ async function loadTasks() {
   taskRowsEl.innerHTML = "";
   data.tasks.forEach((task) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${task.kind}</td>
-      <td><span class="type-badge">${task.status}</span></td>
-      <td>${valueText(task.started_at)}</td>
-      <td>${valueText(task.finished_at)}</td>
-      <td>${valueText(task.returncode)}</td>
-    `;
+    appendTextCell(tr, task.kind);
+    const statusCell = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "type-badge";
+    badge.textContent = valueText(task.status);
+    statusCell.appendChild(badge);
+    tr.appendChild(statusCell);
+    appendTextCell(tr, valueText(task.started_at));
+    appendTextCell(tr, valueText(task.finished_at));
+    appendTextCell(tr, valueText(task.returncode));
     taskRowsEl.appendChild(tr);
   });
 }
@@ -1019,7 +1082,11 @@ async function loadEnvironment() {
   data.checks.forEach((check) => {
     const item = document.createElement("div");
     item.className = `env-item ${check.ok ? "ok" : "fail"}`;
-    item.innerHTML = `<strong>${check.ok ? "OK" : "Falha"} - ${check.name}</strong><span>${check.detail || ""}</span>`;
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    title.textContent = `${check.ok ? "OK" : "Falha"} - ${check.name}`;
+    detail.textContent = check.detail || "";
+    item.append(title, detail);
     environmentGridEl.appendChild(item);
   });
 }

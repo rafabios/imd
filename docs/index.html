@@ -23,6 +23,7 @@
       <nav class="nav-links" aria-label="Navegacao">
         <a href="#features">Recursos</a>
         <a href="#install">Instalar</a>
+        <a href="#problems">Problemas</a>
         <a href="#manual">Manual</a>
         <a href="#faq">FAQ</a>
         <a class="nav-cta" href="#download">Baixar</a>
@@ -98,6 +99,77 @@
             <span>Confirme as pastas sugeridas ou escolha outras. No final, marque para abrir o IMD.</span>
           </li>
         </ol>
+      </section>
+
+      <section id="problems" class="section troubleshooting-section">
+        <div class="section-heading">
+          <p class="eyebrow">Problemas comuns na instalação</p>
+          <h2>O Windows bloqueou o Setup.exe mesmo depois de desbloquear o arquivo?</h2>
+          <p>
+            Isso pode acontecer quando o <strong>Controle Inteligente de Aplicativos</strong> não reconhece uma versão nova do IMD. Se você baixou o instalador deste site e confia no arquivo, siga os passos abaixo.
+          </p>
+        </div>
+
+        <div class="troubleshooting-note">
+          <strong>Antes de começar:</strong>
+          tente primeiro o procedimento normal de <a href="#manual">desbloquear o arquivo nas Propriedades</a>. Desative esta proteção somente se o Windows continuar impedindo a execução.
+        </div>
+
+        <ol class="troubleshooting-grid">
+          <li class="troubleshooting-card">
+            <span class="manual-number">1</span>
+            <h3>Pesquise pelo controle de aplicativos</h3>
+            <p>No menu Iniciar, digite <strong>controle de aplicativos</strong> e abra <strong>Controle de aplicativos e do navegador</strong>.</p>
+            <figure class="manual-shot troubleshooting-shot">
+              <img src="assets/5-w.png" alt="Pesquisa do Windows mostrando Controle de aplicativos e do navegador" loading="lazy" />
+            </figure>
+          </li>
+          <li class="troubleshooting-card">
+            <span class="manual-number">2</span>
+            <h3>Abra a área de proteção</h3>
+            <p>Clique no título <strong>Controle de aplicativos e do navegador</strong>. Não clique em <strong>Ativar</strong>: esse botão pertence ao bloqueio de aplicativos potencialmente indesejados, que é outra proteção.</p>
+            <figure class="manual-shot troubleshooting-shot">
+              <img src="assets/6-w.png" alt="Cartão Controle de aplicativos e do navegador na Segurança do Windows" loading="lazy" />
+            </figure>
+          </li>
+          <li class="troubleshooting-card">
+            <span class="manual-number">3</span>
+            <h3>Localize o Controle Inteligente</h3>
+            <p>Na página aberta, encontre a seção <strong>Controle Inteligente de Aplicativos</strong>.</p>
+            <figure class="manual-shot troubleshooting-shot">
+              <img src="assets/4-w.png" alt="Seção Controle Inteligente de Aplicativos na Segurança do Windows" loading="lazy" />
+            </figure>
+          </li>
+          <li class="troubleshooting-card">
+            <span class="manual-number">4</span>
+            <h3>Abra as configurações</h3>
+            <p>Clique em <strong>Configurações do Controle Inteligente de Aplicativos</strong>.</p>
+            <figure class="manual-shot troubleshooting-shot">
+              <img src="assets/3-w.png" alt="Link Configurações do Controle Inteligente de Aplicativos" loading="lazy" />
+            </figure>
+          </li>
+          <li class="troubleshooting-card">
+            <span class="manual-number">5</span>
+            <h3>Selecione Desativado</h3>
+            <p>Se a opção <strong>Ativado</strong> estiver marcada, selecione <strong>Desativado</strong> e confirme o aviso apresentado pelo Windows.</p>
+            <figure class="manual-shot troubleshooting-shot">
+              <img src="assets/2-w.png" alt="Controle Inteligente de Aplicativos com a opção Ativado selecionada" loading="lazy" />
+            </figure>
+          </li>
+          <li class="troubleshooting-card">
+            <span class="manual-number">6</span>
+            <h3>Confirme e tente novamente</h3>
+            <p>Confira se <strong>Desativado</strong> ficou selecionado. Depois, reinicie o computador e execute novamente o <code>Setup.exe</code>.</p>
+            <figure class="manual-shot troubleshooting-shot">
+              <img src="assets/1-w.png" alt="Controle Inteligente de Aplicativos com a opção Desativado selecionada" loading="lazy" />
+            </figure>
+          </li>
+        </ol>
+
+        <aside class="security-warning">
+          <strong>Atenção:</strong>
+          essa alteração reduz uma camada de proteção do Windows. Faça isso somente para arquivos cuja origem você conhece. Leia o aviso exibido antes de confirmar, pois o comportamento para reativar o recurso pode variar conforme a versão do Windows.
+        </aside>
       </section>
 
       <section id="manual" class="section manual-section">

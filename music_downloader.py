@@ -8,6 +8,7 @@ import subprocess
 import json
 import html
 import argparse
+import hashlib
 import unicodedata
 import urllib.request
 import urllib.parse
@@ -98,8 +99,6 @@ def config_list(path: str, default: Optional[List[str]] = None) -> List[str]:
 # =========================
 MUSIC_DIR = config_str("paths.music_dir", "/data/music")
 STATE_DIR = config_str("paths.state_dir", "/data/state")
-os.makedirs(MUSIC_DIR, exist_ok=True)
-os.makedirs(STATE_DIR, exist_ok=True)
 
 HISTORICO_FILE = os.path.join(STATE_DIR, "historico.txt")
 TRACKS_HISTORY_FILE = os.path.join(STATE_DIR, "tracks_history.txt")
@@ -136,11 +135,6 @@ YTDLP_EXTRACTOR_RETRIES = config_int("ytdlp.extractor_retries", 3)
 
 SPOTIFY_MODE = config_str("spotify.mode", "EMBED").upper()
 SPOTIFY_EMBED_TIMEOUT_SECONDS = config_int("spotify.embed_timeout_seconds", 20)
-SPOTIFY_ARTIST_MODE = config_str("spotify.artist_mode", "top_tracks").lower()
-SPOTIFY_ARTIST_MARKET = config_str("spotify.artist_market", "BR")
-SPOTIFY_ARTIST_ALBUM_GROUPS = config_list("spotify.artist_album_groups", ["album", "single"])
-SPOTIFY_ARTIST_MAX_ALBUMS = config_int("spotify.artist_max_albums", 0)
-SPOTIFY_ARTIST_MAX_TRACKS = config_int("spotify.artist_max_tracks", 0)
 
 GOOGLE_SHEET_CSV = config_str("source.google_sheet_csv", "")
 LOG_LEVEL = config_str("execution.log_level", "INFO").upper()
@@ -162,6 +156,11 @@ CONVERSION_FFMPEG_THREADS = config_int("conversion.ffmpeg_threads", 1)
 AUDIO_EXTS = {".mp3", ".m4a", ".mp4", ".flac", ".wav", ".aiff", ".aif"}
 YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN = False
 
+
+def ensure_runtime_dirs() -> None:
+    os.makedirs(MUSIC_DIR, exist_ok=True)
+    os.makedirs(STATE_DIR, exist_ok=True)
+
 if DISABLE_SSL_VERIFY:
     ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -171,12 +170,6 @@ def validate_config() -> None:
         errors.append("audio.format deve ser 'mp3' ou 'm4a'.")
     if SPOTIFY_MODE not in ("EMBED", "INDEX_ONLY", "YOUTUBE_ONLY", "OFF"):
         errors.append("spotify.mode deve ser EMBED, INDEX_ONLY, YOUTUBE_ONLY ou OFF.")
-    if SPOTIFY_ARTIST_MODE not in ("top_tracks", "discography", "albums", "all"):
-        errors.append("spotify.artist_mode deve ser top_tracks ou discography.")
-    allowed_album_groups = {"album", "single", "appears_on", "compilation"}
-    invalid_groups = [x for x in SPOTIFY_ARTIST_ALBUM_GROUPS if x not in allowed_album_groups]
-    if invalid_groups:
-        errors.append(f"spotify.artist_album_groups contem valores invalidos: {', '.join(invalid_groups)}.")
     if LOG_LEVEL not in ("DEBUG", "INFO", "QUIET"):
         errors.append("execution.log_level deve ser DEBUG, INFO ou QUIET.")
     if "{artist}" not in YTDLP_QUERY_TEMPLATE or "{title}" not in YTDLP_QUERY_TEMPLATE:
@@ -189,10 +182,6 @@ def validate_config() -> None:
         errors.append("ytdlp.extractor_retries precisa ser maior ou igual a 0.")
     if YTDLP_SEARCH_RESULTS < 1:
         errors.append("ytdlp.search_results precisa ser maior ou igual a 1.")
-    if SPOTIFY_ARTIST_MAX_ALBUMS < 0:
-        errors.append("spotify.artist_max_albums deve ser null ou maior/igual a 0.")
-    if SPOTIFY_ARTIST_MAX_TRACKS < 0:
-        errors.append("spotify.artist_max_tracks deve ser null ou maior/igual a 0.")
     supported_conversion_source_formats = {"mp3", "m4a", "mp4", "flac", "wav", "ogg", "opus", "aac"}
     supported_conversion_destination_formats = {"mp3", "m4a", "flac", "wav", "ogg", "opus", "aac"}
     if CONVERSION_SOURCE_FORMAT not in supported_conversion_source_formats:
@@ -269,6 +258,12 @@ def safe_name(s: str) -> str:
     if re.match(r"^-[A-Za-zÀ-ÿ0-9]", s):
         s = s[1:].strip()
     s = s.rstrip(". ").strip()
+    reserved = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+    if s.split(".", 1)[0].upper() in reserved:
+        s = "_" + s
+    if len(s) > 160:
+        digest = hashlib.sha1(s.encode("utf-8", errors="replace")).hexdigest()[:10]
+        s = s[:145].rstrip(". ") + "-" + digest
     return s or "Sem_Nome"
 
 SPOTIFY_ENTITY_TYPES = ("playlist", "artist")
@@ -821,6 +816,10 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
     cache = load_embed_cache()
     cached = cache.get(norm_url)
     if not force_refresh and cached and isinstance(cached, dict) and cached.get("tracks"):
+        cached.setdefault(
+            "partial_possible",
+            entity_type == "playlist" and len(cached.get("tracks") or []) >= 50,
+        )
         log(f"🗂️ Usando cache do embed Spotify: {norm_url}")
         return cached
     if force_refresh and cached:
@@ -864,12 +863,15 @@ def spotify_embed_fetch_collection(url: str, force_refresh: bool = False, write_
         "uri": parsed.get("uri", ""),
         "tracks": parsed.get("tracks", []),
         "count": parsed.get("count", 0),
+        "partial_possible": entity_type == "playlist" and int(parsed.get("count", 0) or 0) >= 50,
         "ts": datetime.now().isoformat(timespec="seconds"),
         "source": "spotify_embed",
     }
     if write_cache:
         cache[norm_url] = result
         save_embed_cache(cache)
+    if result["partial_possible"]:
+        log("Aviso: o embed publico mostrou 50 ou mais faixas; a playlist pode ter mais itens fora dessa pagina.")
     return result
 
 def run_spotify_playlist(
@@ -984,8 +986,11 @@ def run_spotify_playlist(
             count_failed += 1
 
     can_mark_done_with_failures = MARK_COLLECTION_DONE_WITH_FAILURES and count_failed <= MAX_FAILURES_TO_MARK_DONE
-    if not dry_run and (count_failed == 0 or can_mark_done_with_failures):
+    partial_possible = bool(collection.get("partial_possible"))
+    if not dry_run and not partial_possible and (count_failed == 0 or can_mark_done_with_failures):
         hist.add(pid)
+    elif partial_possible:
+        log("Playlist nao marcada como concluida porque o embed publico pode estar incompleto.")
     elif count_failed:
         log(f"Playlist nao marcada como concluida porque houve falhas: {norm_url} | falhas={count_failed}")
 
@@ -1337,6 +1342,7 @@ def run_conversion_mode() -> Dict[str, int]:
 # Main
 # =========================
 def main():
+    ensure_runtime_dirs()
     parser = argparse.ArgumentParser(description="Spotify embed playlist index + yt-dlp downloader")
     parser.add_argument("--tagmusic", dest="tagmusic", action=argparse.BooleanOptionalAction, default=None, help="Ignora downloads e aplica tags basicas em MUSIC_DIR")
     parser.add_argument("--tag-force", dest="tag_force", action=argparse.BooleanOptionalAction, default=None, help="Sobrescreve tags existentes no modo --tagmusic")

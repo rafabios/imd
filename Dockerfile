@@ -17,9 +17,10 @@ ENV PATH="/root/.deno/bin:${PATH}"
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --upgrade pip && pip install --no-cache-dir -r /app/requirements.txt
 
-COPY main.py /app/main.py
+COPY music_downloader.py /app/music_downloader.py
+COPY config.sample.yaml /app/config.yaml
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "/app/main.py"]
+CMD ["python", "/app/music_downloader.py"]
 

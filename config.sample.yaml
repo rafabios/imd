@@ -44,13 +44,6 @@ conversion:
 spotify:
   mode: "EMBED" # EMBED, INDEX_ONLY, YOUTUBE_ONLY ou OFF
   embed_timeout_seconds: 20
-  artist_mode: "top_tracks" # top_tracks ou discography
-  artist_market: "BR"
-  artist_album_groups:
-    - "album"
-    - "single"
-  artist_max_albums: null
-  artist_max_tracks: null
 
 history:
   mark_collection_done_with_failures: false

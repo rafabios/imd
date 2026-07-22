@@ -1,5 +1,6 @@
 import os
 import json
+import hashlib
 import shutil
 import sys
 import threading
@@ -103,13 +104,29 @@ def select_wheel_url(payload: dict) -> str:
     return str((preferred or wheels)[0].get("url") or "")
 
 
-def download_file(url: str, destination: Path, timeout: int = 60) -> None:
+def select_wheel_sha256(payload: dict, wheel_url: str) -> str:
+    for item in payload.get("urls") or []:
+        if str(item.get("url") or "") == wheel_url:
+            return str((item.get("digests") or {}).get("sha256") or "").lower()
+    return ""
+
+
+def download_file(url: str, destination: Path, timeout: int = 60, expected_sha256: str = "") -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     tmp = destination.with_suffix(destination.suffix + ".tmp")
     req = urllib.request.Request(url, headers={"User-Agent": "IMDLocal/yt-dlp-updater"}, method="GET")
+    digest = hashlib.sha256()
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         with open(tmp, "wb") as f:
-            shutil.copyfileobj(resp, f)
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                f.write(chunk)
+    if expected_sha256 and digest.hexdigest().lower() != expected_sha256.lower():
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError("Hash SHA256 do update do yt-dlp nao confere.")
     tmp.replace(destination)
 
 
@@ -125,8 +142,9 @@ def check_yt_dlp_update(root: Path, force: bool = False) -> dict:
         payload = pypi_yt_dlp_payload()
         latest_version = str((payload.get("info") or {}).get("version") or "")
         wheel_url = select_wheel_url(payload)
-        if not latest_version or not wheel_url:
-            raise RuntimeError("PyPI nao retornou wheel do yt-dlp.")
+        wheel_sha256 = select_wheel_sha256(payload, wheel_url)
+        if not latest_version or not wheel_url or not wheel_sha256:
+            raise RuntimeError("PyPI nao retornou wheel e hash SHA256 do yt-dlp.")
 
         result = {
             "last_check": today,
@@ -135,7 +153,7 @@ def check_yt_dlp_update(root: Path, force: bool = False) -> dict:
             "updated": False,
         }
         if version_tuple(latest_version) > version_tuple(current_version):
-            download_file(wheel_url, yt_dlp_wheel_path(root))
+            download_file(wheel_url, yt_dlp_wheel_path(root), expected_sha256=wheel_sha256)
             add_yt_dlp_update_to_path(root)
             result["updated"] = True
             result["current_version"] = latest_version

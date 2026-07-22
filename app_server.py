@@ -1,16 +1,18 @@
 import argparse
-import cgi
 import csv
 import json
 import mimetypes
 import os
 import re
+import signal
 import shutil
 import ssl
 import subprocess
 import sys
 import threading
 import uuid
+from email.parser import BytesParser
+from email.policy import default as email_policy
 from io import BytesIO, StringIO
 from collections import deque
 from dataclasses import dataclass, field
@@ -49,9 +51,12 @@ BACKUP_DIR = ROOT_DIR / "config_backups"
 SCRIPT_FILE = ROOT_DIR / "music_downloader.py"
 IMPORT_DIR = ROOT_DIR / "imports"
 TASK_DIR = ROOT_DIR / "tasks"
-TASK_LOCK = threading.Lock()
+TASK_LOCK = threading.RLock()
 TASKS: Dict[str, "BackgroundTask"] = {}
 IMPORTS: Dict[str, Dict[str, Any]] = {}
+ACTIVE_TASK_STATUSES = {"pending", "running", "canceling"}
+MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
+MAX_UPLOAD_BODY_BYTES = 25 * 1024 * 1024
 
 
 def worker_command(*args: str) -> List[str]:
@@ -110,8 +115,10 @@ def read_yaml_file(path: Path) -> Dict[str, Any]:
 
 
 def write_yaml_file(path: Path, data: Dict[str, Any]) -> None:
-    with open(path, "w", encoding="utf-8") as f:
+    tmp_path = path.with_name(path.name + f".{uuid.uuid4().hex}.tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=False, allow_unicode=False, default_flow_style=False)
+    tmp_path.replace(path)
 
 
 def flatten_config_paths(data: Dict[str, Any], prefix: str = "") -> List[str]:
@@ -131,6 +138,11 @@ def validate_config_data(config: Dict[str, Any], sample: Dict[str, Any]) -> Tupl
         "spotify.credentials_file",
         "spotify.client_id",
         "spotify.client_secret",
+        "spotify.artist_mode",
+        "spotify.artist_market",
+        "spotify.artist_album_groups",
+        "spotify.artist_max_albums",
+        "spotify.artist_max_tracks",
     }
     config_paths = set(flatten_config_paths(config))
     sample_paths = set(flatten_config_paths(sample))
@@ -162,7 +174,7 @@ def validate_config_files() -> Tuple[bool, List[str]]:
 
 def backup_config_file() -> Path:
     BACKUP_DIR.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_path = BACKUP_DIR / f"config_{stamp}.yaml"
     shutil.copy2(CONFIG_FILE, backup_path)
     return backup_path
@@ -195,19 +207,30 @@ def persist_task(task: BackgroundTask) -> None:
     TASK_DIR.mkdir(exist_ok=True)
     payload = task.snapshot()
     payload["command"] = task.command
-    task_file(task.id).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    destination = task_file(task.id)
+    tmp_path = destination.with_name(destination.name + f".{uuid.uuid4().hex}.tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(destination)
 
 
 def load_persisted_tasks() -> None:
     if not TASK_DIR.exists():
         return
+    recovered: List[BackgroundTask] = []
     with TASK_LOCK:
         for path in TASK_DIR.glob("*.json"):
             try:
                 task = BackgroundTask.from_snapshot(json.loads(path.read_text(encoding="utf-8")))
+                if task.status in ACTIVE_TASK_STATUSES:
+                    task.status = "interrupted"
+                    task.finished_at = task.finished_at or now_iso()
+                    task.logs.append("Tarefa interrompida porque o aplicativo foi encerrado.")
+                    recovered.append(task)
                 TASKS.setdefault(task.id, task)
             except Exception:
                 continue
+    for task in recovered:
+        persist_task(task)
 
 
 def update_task_progress_from_line(task: BackgroundTask, line: str) -> None:
@@ -256,6 +279,8 @@ def run_background_task(task: BackgroundTask) -> None:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
+            start_new_session=sys.platform != "win32",
         )
         task.process = process
         assert process.stdout is not None
@@ -287,6 +312,14 @@ def latest_task(kind: str) -> BackgroundTask | None:
     if not matching:
         return None
     return sorted(matching, key=lambda task: task.started_at or "", reverse=True)[0]
+
+
+def active_task(kind: str) -> BackgroundTask | None:
+    with TASK_LOCK:
+        return next(
+            (task for task in TASKS.values() if task.kind == kind and task.status in ACTIVE_TASK_STATUSES),
+            None,
+        )
 
 
 def all_tasks_payload() -> Dict[str, Any]:
@@ -408,6 +441,7 @@ def spotify_check_payload(url: str) -> Dict[str, Any]:
             "name": collection.get("name") or "",
             "entity_type": collection.get("entity_type") or "",
             "count": len(collection.get("tracks") or []),
+            "partial_possible": bool(collection.get("partial_possible")),
             "sample": (collection.get("tracks") or [])[:5],
         }
     except Exception as e:
@@ -415,20 +449,16 @@ def spotify_check_payload(url: str) -> Dict[str, Any]:
 
 
 def start_conversion_task() -> Dict[str, Any]:
-    current = latest_task("conversion")
-    if current and current.status in ("pending", "running", "canceling"):
-        return {"ok": False, "error": "Ja existe uma conversao em andamento.", "task": current.snapshot()}
-
-    command = worker_command("--conversion-only")
-    task = start_background_task("conversion", command)
+    with TASK_LOCK:
+        current = active_task("conversion")
+        if current:
+            return {"ok": False, "error": "Ja existe uma conversao em andamento.", "task": current.snapshot()}
+        command = worker_command("--conversion-only")
+        task = start_background_task("conversion", command)
     return {"ok": True, "task": task.snapshot()}
 
 
 def start_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
-    current = latest_task("download")
-    if current and current.status in ("pending", "running", "canceling"):
-        return {"ok": False, "error": "Ja existe um download em andamento.", "task": current.snapshot()}
-
     command = worker_command()
     if options.get("reescan_list"):
         command.append("--reescan-list")
@@ -450,7 +480,11 @@ def start_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
     if options.get("tagmusic") is not None:
         command.append("--tagmusic" if options.get("tagmusic") else "--no-tagmusic")
 
-    task = start_background_task("download", command)
+    with TASK_LOCK:
+        current = active_task("download")
+        if current:
+            return {"ok": False, "error": "Ja existe um download em andamento.", "task": current.snapshot()}
+        task = start_background_task("download", command)
     return {"ok": True, "task": task.snapshot()}
 
 
@@ -513,10 +547,6 @@ def start_failure_retry_task(options: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def start_import_download_task(import_id: str, options: Dict[str, Any]) -> Dict[str, Any]:
-    current = latest_task("download")
-    if current and current.status in ("pending", "running", "canceling"):
-        return {"ok": False, "error": "Ja existe um download em andamento.", "task": current.snapshot()}
-
     imported = IMPORTS.get(import_id)
     csv_path = Path(imported["csv_path"]) if imported else IMPORT_DIR / f"{import_id}.csv"
     if not csv_path.exists():
@@ -534,7 +564,11 @@ def start_import_download_task(import_id: str, options: Dict[str, Any]) -> Dict[
     if options.get("tagmusic") is not None:
         command.append("--tagmusic" if options.get("tagmusic") else "--no-tagmusic")
 
-    task = start_background_task("download", command)
+    with TASK_LOCK:
+        current = active_task("download")
+        if current:
+            return {"ok": False, "error": "Ja existe um download em andamento.", "task": current.snapshot()}
+        task = start_background_task("download", command)
     return {"ok": True, "task": task.snapshot()}
 
 
@@ -557,8 +591,28 @@ def cancel_task(task_id: str) -> Dict[str, Any]:
     task.status = "canceling"
     task.logs.append("Cancelamento solicitado.")
     if task.process and task.process.poll() is None:
-        task.process.terminate()
+        terminate_process_tree(task.process)
+    persist_task(task)
     return {"ok": True, "task": task.snapshot()}
+
+
+def terminate_process_tree(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if result.returncode != 0:
+                process.terminate()
+        else:
+            os.killpg(process.pid, signal.SIGTERM)
+    except Exception:
+        process.terminate()
 
 
 def config_summary(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -828,6 +882,10 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        origin = str(self.headers.get("Origin") or "").strip()
+        if origin and urlparse(origin).hostname not in {"127.0.0.1", "localhost", "::1"}:
+            self.send_json({"ok": False, "error": "Origem externa nao autorizada."}, status=403)
+            return
         if parsed.path == "/api/config":
             try:
                 payload = self.read_json_body()
@@ -913,32 +971,51 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_error(404, "Endpoint nao encontrado")
 
     def read_json_body(self) -> Dict[str, Any]:
-        length = int(self.headers.get("Content-Length", "0") or "0")
-        raw = self.rfile.read(length).decode("utf-8")
+        raw = self.read_limited_body(MAX_JSON_BODY_BYTES).decode("utf-8")
         data = json.loads(raw or "{}")
         if not isinstance(data, dict):
             raise ValueError("Corpo da requisicao precisa ser JSON objeto.")
         return data
 
     def read_upload_preview(self) -> Dict[str, Any]:
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type"),
-            },
+        content_type = str(self.headers.get("Content-Type") or "")
+        if "multipart/form-data" not in content_type.lower():
+            raise ValueError("Envie o arquivo como multipart/form-data.")
+
+        body = self.read_limited_body(MAX_UPLOAD_BODY_BYTES)
+        message = BytesParser(policy=email_policy).parsebytes(
+            f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("ascii") + body
         )
-        file_item = form["file"] if "file" in form else None
-        if file_item is None or not getattr(file_item, "filename", ""):
+        file_part = next(
+            (
+                part
+                for part in message.iter_parts()
+                if part.get_param("name", header="content-disposition") == "file" and part.get_filename()
+            ),
+            None,
+        )
+        if file_part is None:
             raise ValueError("Envie um arquivo no campo file.")
-        content = file_item.file.read()
-        return parse_import_file(file_item.filename, content)
+        content = file_part.get_payload(decode=True) or b""
+        return parse_import_file(str(file_part.get_filename()), content)
+
+    def read_limited_body(self, limit: int) -> bytes:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length < 0:
+            raise ValueError("Content-Length invalido.")
+        if length > limit:
+            raise ValueError(f"Corpo da requisicao excede o limite de {limit // (1024 * 1024)} MB.")
+        return self.rfile.read(length)
 
     def serve_static(self, request_path: str) -> None:
         rel_path = request_path.lstrip("/") or "index.html"
         target = (WEB_DIR / rel_path).resolve()
-        if not str(target).startswith(str(WEB_DIR.resolve())) or not target.is_file():
+        try:
+            target.relative_to(WEB_DIR.resolve())
+        except ValueError:
+            self.send_error(404, "Arquivo nao encontrado")
+            return
+        if not target.is_file():
             self.send_error(404, "Arquivo nao encontrado")
             return
 
@@ -948,6 +1025,8 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store, max-age=0")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         self.end_headers()
         self.wfile.write(body)
 
@@ -957,6 +1036,7 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store, max-age=0")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(body)
 

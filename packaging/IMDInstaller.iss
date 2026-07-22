@@ -135,13 +135,6 @@ begin
     'spotify:' + NL() +
     '  mode: "EMBED"' + NL() +
     '  embed_timeout_seconds: 20' + NL() +
-    '  artist_mode: "top_tracks"' + NL() +
-    '  artist_market: "BR"' + NL() +
-    '  artist_album_groups:' + NL() +
-    '    - "album"' + NL() +
-    '    - "single"' + NL() +
-    '  artist_max_albums: null' + NL() +
-    '  artist_max_tracks: null' + NL() +
     NL() +
     'history:' + NL() +
     '  mark_collection_done_with_failures: false' + NL() +
@@ -217,6 +210,11 @@ begin
     Exit;
 
   ConfigPath := ExpandConstant('{app}\config.yaml');
+
+  if FileExists(ConfigPath) then begin
+    Log('Config existente preservado durante a atualizacao: ' + ConfigPath);
+    Exit;
+  end;
 
   if WizardSilent then begin
     MusicDirRaw := DefaultUserFolder('Music\IMD');

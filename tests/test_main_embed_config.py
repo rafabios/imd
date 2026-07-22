@@ -35,6 +35,11 @@ def sample_config():
         return yaml.safe_load(f)
 
 
+@pytest.fixture(autouse=True)
+def avoid_machine_specific_runtime_directories(app, monkeypatch):
+    monkeypatch.setattr(app, "ensure_runtime_dirs", lambda: None)
+
+
 def _has_path(data, dotted_path):
     cur = data
     for part in dotted_path.split("."):
@@ -96,8 +101,18 @@ def test_spotify_url_normalization(app):
     assert app.normalize_spotify_url(url) == "https://open.spotify.com/playlist/4419fmChSKR2qkPFIsFTdg"
 
 
+def test_safe_name_handles_windows_reserved_and_long_names(app):
+    assert app.safe_name("CON") == "_CON"
+    assert app.safe_name("LPT1.mix") == "_LPT1.mix"
+    long_name = "musica" * 80
+    cleaned = app.safe_name(long_name)
+    assert len(cleaned) <= 160
+    assert cleaned == app.safe_name(long_name)
+
+
 def test_spotify_http_uses_certifi_ca_bundle(app, monkeypatch):
     captured = {}
+    monkeypatch.setattr(app, "DISABLE_SSL_VERIFY", False)
 
     class FakeResponse:
         def __enter__(self):
@@ -232,6 +247,21 @@ def test_spotify_embed_fetches_given_artist_without_auth(app, monkeypatch):
         {"artist": "Earthspace, Ital", "title": "Afterlife", "album": ""},
         {"artist": "Earthspace", "title": "Freaking Out", "album": ""},
     ]
+
+
+def test_cached_spotify_playlist_flags_possible_embed_limit(app, monkeypatch):
+    url = "https://open.spotify.com/playlist/abc"
+    tracks = [{"artist": "A", "title": f"T{i}"} for i in range(50)]
+    monkeypatch.setattr(app, "load_embed_cache", lambda: {url: {"tracks": tracks, "count": 50}})
+    monkeypatch.setattr(
+        app,
+        "spotify_embed_http_get_text",
+        lambda *args, **kwargs: pytest.fail("cache deveria evitar HTTP"),
+    )
+
+    result = app.spotify_embed_fetch_collection(url)
+
+    assert result["partial_possible"] is True
 
 
 def test_search_queries_use_config_template(app):

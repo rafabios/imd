@@ -17,7 +17,7 @@ if ffmpeg_dir.exists():
     datas.append((str(ffmpeg_dir), "vendor/ffmpeg"))
 
 hiddenimports = []
-for package in ("yt_dlp", "mutagen", "librosa"):
+for package in ("yt_dlp", "mutagen", "librosa", "openpyxl"):
     hiddenimports.extend(collect_submodules(package))
 
 

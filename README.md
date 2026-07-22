@@ -1,68 +1,81 @@
 # IMD Insane Music Downloader
 
-## Windows installer
+Aplicativo local para importar listas de musicas, indexar playlists e artistas publicos do Spotify, localizar as faixas no YouTube com `yt-dlp`, converter o audio com FFmpeg e manter historico idempotente.
 
-Este projeto inclui um GitHub Actions workflow para gerar instaladores Windows do painel local.
+## Instalacao no Windows
 
-- `IMD-Insane-Music-Downloader-*-Setup.exe`: recomendado para usuario final. Abre um assistente com Next/Avancar para escolher pasta de musicas, pasta de estado e URL CSV da planilha do Google.
-- `IMD-Insane-Music-Downloader-*.msi`: instalador tecnico/silencioso, util para automacao.
+O projeto gera dois instaladores:
 
-Como gerar:
+- `IMD-Insane-Music-Downloader-*-Setup.exe`: recomendado. Permite escolher as pastas e a planilha durante a instalacao.
+- `IMD-Insane-Music-Downloader-*.msi`: instalador tecnico para automacao.
 
-- Suba o projeto no GitHub.
-- Abra `Actions` > `Build Windows Installers` > `Run workflow`.
-- Baixe o artefato `IMD-Insane-Music-Downloader-Windows-Installers`.
-
-Para publicar uma versao:
+Os instaladores sao gerados em `Actions > Build Windows Installers`. Para publicar uma versao:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.7
+git push origin v0.1.7
 ```
 
-Quando a tag `v*` for enviada, o workflow gera o `.exe`, o `.msi` e anexa os arquivos no GitHub Release.
+Tags `v*` geram uma GitHub Release com Setup, MSI e `SHA256SUMS.txt`.
 
-Os instaladores sao por usuario, instalam em `AppData`, criam atalho no Menu Iniciar e incluem o `ffmpeg` baixado durante o build. Se o Windows bloquear o setup baixado do GitHub, clique com o botao direito no arquivo, abra `Propriedades`, marque `Desbloquear` e execute de novo. O arquivo `SHA256SUMS.txt` publicado junto ajuda a conferir o download.
+Atualizacoes pelo Setup preservam o `config.yaml` existente. O aplicativo e instalado por usuario em `AppData`, cria atalhos e inclui FFmpeg.
 
-This container runs a Python script that:
-- Reads a Google Sheets CSV export (or your override URL)
-- Downloads individual tracks from YouTube (yt-dlp)
-- Optionally downloads Spotify playlists/artists from public Spotify embed pages
-- Converts audio to MP3 (320kbps by default)
-- Optionally detects BPM (fast method)
-- Writes logs to `data/erros.txt` and keeps an idempotent history in `data/historico.txt`
+## Execucao pelo codigo-fonte
 
-## 1) Files in this template
-- `Dockerfile`
-- `requirements.txt`
-- `.env` (template)
-- `main.py` (script)
-
-## 2) Configure
-Edit `.env`:
-
-- Optional:
-  - `GOOGLE_SHEET_CSV`
-  - `DETECT_BPM=1` (set 0 to disable)
-  - `QUALITY_AUDIO=320`
-
-## 3) Build
+Recomendado: Python 3.12.
 
 ```bash
-docker build -t music-downloader:latest .
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+copy config.sample.yaml config.yaml
+.venv\Scripts\python imd_launcher.py
 ```
 
-## 4) Run
+Edite `config.yaml` antes da primeira execucao. Os campos principais sao:
 
-Mount two folders so downloads/logs persist:
+- `source.google_sheet_csv`: URL CSV do Google Sheets;
+- `paths.music_dir`: pasta onde as musicas serao salvas;
+- `paths.state_dir`: pasta de historico, erros e cache;
+- `audio.format` e `audio.quality`: formato e qualidade;
+- `spotify.mode`: processamento de links publicos do Spotify.
+
+O painel abre em `http://127.0.0.1:8765`.
+
+## Testes
 
 ```bash
+python -m pytest -q
+python -m py_compile app_server.py music_downloader.py imd_launcher.py
+```
+
+## Docker
+
+Prepare um `config.docker.yaml` a partir de `config.sample.yaml`, usando caminhos do contêiner:
+
+```yaml
+paths:
+  music_dir: "/music"
+  state_dir: "/state"
+```
+
+Depois execute:
+
+```bash
+docker build -t imd:latest .
 docker run --rm -it \
-  --env-file .env \
-  -v "$(pwd)/output:/app/output" \
-  -v "$(pwd)/data:/app/data" \
-  music-downloader:latest
+  -v "$(pwd)/config.docker.yaml:/app/config.yaml:ro" \
+  -v "$(pwd)/music:/music" \
+  -v "$(pwd)/state:/state" \
+  imd:latest
 ```
 
-## Notes
-- This image installs **deno** to avoid yt-dlp warnings about missing JavaScript runtime.
+O contêiner inclui FFmpeg, certificados CA e Deno.
+
+## Estrutura
+
+- `music_downloader.py`: downloads, Spotify, conversao, tags e historico;
+- `app_server.py`: API e painel local;
+- `imd_launcher.py`: inicializacao e atualizacao do `yt-dlp`;
+- `web/`: interface do painel;
+- `packaging/`: instaladores Windows;
+- `tests/`: testes automatizados.
