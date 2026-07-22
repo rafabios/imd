@@ -35,3 +35,14 @@ def test_pages_documents_smart_app_control_troubleshooting():
     for asset in ("5-w.png", "6-w.png", "4-w.png", "3-w.png", "2-w.png", "1-w.png"):
         assert f'assets/{asset}' in source
         assert (ROOT / "docs" / "assets" / asset).is_file()
+
+
+def test_pages_loads_latest_release_version_safely():
+    source = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    script = (ROOT / "docs" / "site.js").read_text(encoding="utf-8")
+
+    assert 'data-latest-version' in source
+    assert '<script src="site.js" defer></script>' in source
+    assert "repos/rafabios/imd/releases/latest" in script
+    assert "node.textContent = tag" in script
+    assert "innerHTML" not in script

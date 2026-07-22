@@ -142,6 +142,33 @@ code {
   color: #ffffff;
 }
 
+.version-pill {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #dce7ec;
+  font-size: 13px;
+  font-weight: 750;
+  backdrop-filter: blur(10px);
+}
+
+.version-pill strong {
+  color: #ffffff;
+}
+
+.version-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 5px rgba(19, 163, 139, 0.18);
+}
+
 .eyebrow {
   margin: 0 0 12px;
   color: var(--gold);
@@ -497,6 +524,12 @@ h3 {
 .download-placeholder code {
   background: rgba(255, 255, 255, 0.12);
   color: #fff8ea;
+}
+
+.download-placeholder a {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .faq-grid {
