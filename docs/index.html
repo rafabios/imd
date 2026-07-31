@@ -36,7 +36,7 @@
         <img class="hero-image" src="assets/panel-preview.svg" alt="Preview do painel local do IMD" />
         <div class="hero-overlay"></div>
         <div class="hero-content">
-          <p class="eyebrow">Painel local para Windows</p>
+          <p class="eyebrow">Painel local para Windows e macOS</p>
           <a class="version-pill" href="https://github.com/rafabios/imd/releases/latest" aria-label="Abrir a versão mais recente no GitHub">
             <span class="version-dot" aria-hidden="true"></span>
             <span>Versão mais recente</span>
@@ -47,10 +47,10 @@
             Baixe, converta, revise e organize musicas com uma interface simples no navegador, sem precisar mexer em terminal.
           </p>
           <div class="hero-actions">
-            <a class="primary-button" href="#download">Baixar Setup.exe</a>
+            <a class="primary-button" href="#download">Ver downloads</a>
             <a class="secondary-button" href="#manual">Manual passo a passo</a>
           </div>
-          <p class="hero-note">Instala por usuario, configura suas pastas e abre o painel local automaticamente.</p>
+          <p class="hero-note">Pacotes prontos para Windows, Mac Intel e Mac com Apple Silicon.</p>
         </div>
       </section>
 
@@ -86,7 +86,7 @@
       <section id="install" class="section install-section">
         <div class="install-copy">
           <p class="eyebrow">Instalacao</p>
-          <h2>Baixe o Setup.exe e siga o assistente</h2>
+          <h2>Windows: baixe o Setup.exe e siga o assistente</h2>
           <p>
             O instalador recomendado e o <code>Setup.exe</code>. Ele inclui o aplicativo, dependencias principais e telas simples para escolher a pasta de musicas, a pasta de estado e a URL CSV da sua planilha do Google.
           </p>
@@ -103,6 +103,30 @@
           <li>
             <strong>Clique em Avancar</strong>
             <span>Confirme as pastas sugeridas ou escolha outras. No final, marque para abrir o IMD.</span>
+          </li>
+        </ol>
+      </section>
+
+      <section id="install-macos" class="section install-section">
+        <div class="install-copy">
+          <p class="eyebrow">macOS</p>
+          <h2>Abra o DMG e arraste o IMD para Aplicativos</h2>
+          <p>
+            Escolha o pacote <strong>Apple Silicon</strong> para Macs M1 ou posteriores, ou <strong>Intel</strong> para modelos antigos. O aplicativo inclui Python, dependencias e FFmpeg.
+          </p>
+        </div>
+        <ol class="step-list">
+          <li>
+            <strong>Baixe o DMG correto</strong>
+            <span>Abra o menu Apple e use Sobre Este Mac se nao souber qual processador esta instalado.</span>
+          </li>
+          <li>
+            <strong>Arraste para Aplicativos</strong>
+            <span>Abra a imagem e arraste IMD.app para o atalho Aplicativos.</span>
+          </li>
+          <li>
+            <strong>Autorize a primeira abertura</strong>
+            <span>Se houver bloqueio, tente abrir uma vez e use Ajustes do Sistema, Privacidade e Seguranca, Abrir Mesmo Assim.</span>
           </li>
         </ol>
       </section>
@@ -307,7 +331,7 @@
         <div>
           <p class="eyebrow">Download</p>
           <h2>Pronto para testar?</h2>
-          <p>Para uso normal, baixe o Setup.exe. O MSI continua disponivel para instalacao tecnica ou automatizada.</p>
+          <p>Escolha o instalador correspondente ao seu sistema e processador.</p>
         </div>
         <div class="download-actions">
           <a
@@ -321,6 +345,18 @@
             href="https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest.msi"
           >
             Baixar MSI
+          </a>
+          <a
+            class="primary-button"
+            href="https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest-macOS-Apple-Silicon.dmg"
+          >
+            macOS Apple Silicon
+          </a>
+          <a
+            class="secondary-button light-button"
+            href="https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest-macOS-Intel.dmg"
+          >
+            macOS Intel
           </a>
         </div>
         <p class="download-placeholder">
@@ -340,7 +376,7 @@
           </article>
           <article>
             <h3>Qual arquivo devo baixar?</h3>
-            <p>Baixe o <code>Setup.exe</code>. Ele tem assistente de instalacao e configuracao inicial.</p>
+            <p>No Windows, baixe o <code>Setup.exe</code>. No Mac, escolha o DMG Apple Silicon ou Intel conforme o processador.</p>
           </article>
           <article>
             <h3>Preciso instalar Python?</h3>

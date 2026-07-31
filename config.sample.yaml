@@ -4,8 +4,8 @@ source:
   google_sheet_csv: "https://docs.google.com/spreadsheets/d/SEU_ID/export?format=csv&gid=0"
 
 paths:
-  music_dir: "C:/Users/SEU_USUARIO/Music/google"
-  state_dir: "C:/Users/SEU_USUARIO/Music"
+  music_dir: "C:/Users/SEU_USUARIO/Music/IMD"
+  state_dir: "C:/Users/SEU_USUARIO/Music/IMD-State"
 
 execution:
   reescan_list: false
@@ -33,7 +33,7 @@ conversion:
   enable: false
   conversion_only: false
   verbose: true
-  music_dir: "C:/Users/SEU_USUARIO/Music/google"
+  music_dir: "C:/Users/SEU_USUARIO/Music/IMD"
   source_format: "m4a" # entrada: mp3, m4a, mp4, flac, wav, ogg, opus ou aac
   destination_format: "mp3" # saida: mp3, m4a, flac, wav, ogg, opus ou aac
   dry_run: true

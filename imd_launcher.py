@@ -1,7 +1,6 @@
 import os
 import json
 import hashlib
-import shutil
 import sys
 import threading
 import time
@@ -9,6 +8,8 @@ import urllib.request
 import webbrowser
 from datetime import date
 from pathlib import Path
+
+from imd_paths import default_music_dir, default_state_dir, frozen_app_data_dir
 
 
 APP_NAME = "IMD Insane Music Downloader"
@@ -18,7 +19,7 @@ YT_DLP_META = "yt_dlp_update.json"
 
 def app_dir() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        return frozen_app_data_dir(sys.executable)
     return Path(__file__).resolve().parent
 
 
@@ -171,10 +172,11 @@ def check_yt_dlp_update(root: Path, force: bool = False) -> dict:
 
 
 def print_banner() -> None:
-    try:
-        os.system(f"title {APP_NAME}")
-    except Exception:
-        pass
+    if sys.platform == "win32":
+        try:
+            os.system(f"title {APP_NAME}")
+        except Exception:
+            pass
     print("=" * 64, flush=True)
     print(f" {APP_NAME}", flush=True)
     print("=" * 64, flush=True)
@@ -185,7 +187,15 @@ def print_banner() -> None:
     print("=" * 64, flush=True)
 
 
+def create_initial_config(sample_file: Path, config_file: Path) -> None:
+    content = sample_file.read_text(encoding="utf-8")
+    content = content.replace("C:/Users/SEU_USUARIO/Music/IMD-State", default_state_dir().as_posix())
+    content = content.replace("C:/Users/SEU_USUARIO/Music/IMD", default_music_dir().as_posix())
+    config_file.write_text(content, encoding="utf-8")
+
+
 def prepare_runtime(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
     os.chdir(root)
     os.environ.setdefault("PYTHONUTF8", "1")
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -199,7 +209,7 @@ def prepare_runtime(root: Path) -> None:
     config_file = root / "config.yaml"
     sample_file = resources / "config.sample.yaml"
     if not config_file.exists() and sample_file.exists():
-        shutil.copy2(sample_file, config_file)
+        create_initial_config(sample_file, config_file)
 
 
 def open_browser_later(url: str) -> None:
@@ -240,7 +250,10 @@ def main() -> None:
     if "--port" not in sys.argv:
         sys.argv.extend(["--port", port])
 
-    open_browser_later(f"http://{host}:{port}")
+    if "--no-browser" in sys.argv:
+        sys.argv.remove("--no-browser")
+    else:
+        open_browser_later(f"http://{host}:{port}")
     import app_server
 
     app_server.main()

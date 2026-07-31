@@ -11,6 +11,26 @@ def test_version_tuple_orders_yt_dlp_versions():
     assert imd_launcher.version_tuple("2026.7.17") == imd_launcher.version_tuple("2026.07.17")
 
 
+def test_create_initial_config_uses_real_user_directories(monkeypatch, tmp_path):
+    sample = tmp_path / "config.sample.yaml"
+    target = tmp_path / "config.yaml"
+    sample.write_text(
+        'paths:\n  music_dir: "C:/Users/SEU_USUARIO/Music/IMD"\n'
+        '  state_dir: "C:/Users/SEU_USUARIO/Music/IMD-State"\n'
+        'conversion:\n  music_dir: "C:/Users/SEU_USUARIO/Music/IMD"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(imd_launcher, "default_music_dir", lambda: tmp_path / "Music" / "IMD")
+    monkeypatch.setattr(imd_launcher, "default_state_dir", lambda: tmp_path / "Music" / "IMD-State")
+
+    imd_launcher.create_initial_config(sample, target)
+
+    content = target.read_text(encoding="utf-8")
+    assert (tmp_path / "Music" / "IMD").as_posix() in content
+    assert (tmp_path / "Music" / "IMD-State").as_posix() in content
+    assert "SEU_USUARIO" not in content
+
+
 def test_check_yt_dlp_update_downloads_new_wheel(monkeypatch, tmp_path):
     calls = []
 

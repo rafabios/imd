@@ -1,0 +1,167 @@
+name: Build macOS Installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag da release a publicar quando rodar manualmente"
+        required: true
+        default: "v0.1.0"
+      publish_release:
+        description: "Publicar os DMGs no GitHub Releases"
+        required: true
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PRODUCT_VERSION: 0.1.${{ github.run_number }}
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  build-macos:
+    name: Build macOS ${{ matrix.asset_arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            machine_arch: x86_64
+            asset_arch: Intel
+          - runner: macos-15
+            machine_arch: arm64
+            asset_arch: Apple-Silicon
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Install and locate FFmpeg
+        shell: bash
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            brew install ffmpeg
+          fi
+          ffmpeg_dir="$(dirname "$(command -v ffmpeg)")"
+          test -x "$ffmpeg_dir/ffmpeg"
+          test -x "$ffmpeg_dir/ffprobe"
+          echo "FFMPEG_DIR=$ffmpeg_dir" >> "$GITHUB_ENV"
+          "$ffmpeg_dir/ffmpeg" -version
+          "$ffmpeg_dir/ffprobe" -version
+
+      - name: Run tests
+        run: |
+          python -m pytest -q
+          python -m py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py
+
+      - name: Build macOS app
+        run: |
+          pyinstaller packaging/IMD-macos.spec --noconfirm --clean
+          test -d dist/IMD.app
+          test -x dist/IMD.app/Contents/MacOS/IMD
+          plutil -lint dist/IMD.app/Contents/Info.plist
+          file dist/IMD.app/Contents/MacOS/IMD | grep "${{ matrix.machine_arch }}"
+          codesign --verify --deep --strict --verbose=2 dist/IMD.app
+          bundled_ffmpeg="$(find dist/IMD.app -type f -name ffmpeg -print -quit)"
+          bundled_ffprobe="$(find dist/IMD.app -type f -name ffprobe -print -quit)"
+          test -n "$bundled_ffmpeg"
+          test -n "$bundled_ffprobe"
+          "$bundled_ffmpeg" -version
+          "$bundled_ffprobe" -version
+
+      - name: Smoke test macOS app
+        shell: bash
+        run: |
+          smoke_home="$RUNNER_TEMP/imd-smoke-home-${{ matrix.asset_arch }}"
+          smoke_log="$RUNNER_TEMP/imd-smoke-${{ matrix.asset_arch }}.log"
+          rm -rf "$smoke_home"
+          mkdir -p "$smoke_home"
+          HOME="$smoke_home" dist/IMD.app/Contents/MacOS/IMD --no-browser --host 127.0.0.1 --port 8877 >"$smoke_log" 2>&1 &
+          app_pid=$!
+          cleanup() {
+            kill "$app_pid" 2>/dev/null || true
+            wait "$app_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8877/api/health >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            cat "$smoke_log"
+            exit 1
+          fi
+
+          curl --fail --silent http://127.0.0.1:8877/api/environment > "$RUNNER_TEMP/imd-environment.json"
+          python -c 'import json, os; data=json.load(open(os.environ["RUNNER_TEMP"] + "/imd-environment.json", encoding="utf-8")); checks={item["name"]: item for item in data["checks"]}; assert checks["ffmpeg"]["ok"], checks["ffmpeg"]'
+          config_path="$smoke_home/Library/Application Support/IMD Insane Music Downloader/config.yaml"
+          test -f "$config_path"
+          grep -F "$smoke_home/Music/IMD" "$config_path"
+
+      - name: Create unsigned DMG
+        shell: bash
+        run: |
+          stage_dir="$RUNNER_TEMP/imd-dmg-${{ matrix.asset_arch }}"
+          versioned_dmg="release/IMD-Insane-Music-Downloader-$PRODUCT_VERSION-macOS-${{ matrix.asset_arch }}.dmg"
+          latest_dmg="release/IMD-Insane-Music-Downloader-latest-macOS-${{ matrix.asset_arch }}.dmg"
+          rm -rf "$stage_dir"
+          mkdir -p "$stage_dir" release
+          ditto dist/IMD.app "$stage_dir/IMD.app"
+          ln -s /Applications "$stage_dir/Aplicativos"
+          cp packaging/macos/LEIA-ME-macOS.txt "$stage_dir/LEIA-ME - macOS.txt"
+          hdiutil create -volname "IMD $PRODUCT_VERSION" -srcfolder "$stage_dir" -ov -format UDZO "$versioned_dmg"
+          hdiutil verify "$versioned_dmg"
+          cp "$versioned_dmg" "$latest_dmg"
+          shasum -a 256 "$versioned_dmg" "$latest_dmg" > "release/SHA256SUMS-macOS-${{ matrix.asset_arch }}.txt"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMD-macOS-${{ matrix.asset_arch }}
+          if-no-files-found: error
+          path: release/*
+
+  publish-release:
+    name: Attach macOS installers to release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: IMD-macOS-*
+          path: release
+          merge-multiple: true
+
+      - name: Attach DMGs to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          name: IMD Insane Music Downloader ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          generate_release_notes: true
+          files: release/*

@@ -31,3 +31,10 @@ https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downlo
 ```
 
 O workflow do GitHub Actions gera copias fixas chamadas `IMD-Insane-Music-Downloader-latest-Setup.exe` e `IMD-Insane-Music-Downloader-latest.msi` junto com os arquivos versionados. Assim o site sempre baixa os instaladores da ultima release sem editar HTML.
+
+Os downloads do macOS seguem o mesmo esquema:
+
+```txt
+IMD-Insane-Music-Downloader-latest-macOS-Apple-Silicon.dmg
+IMD-Insane-Music-Downloader-latest-macOS-Intel.dmg
+```

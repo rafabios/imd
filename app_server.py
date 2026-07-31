@@ -28,10 +28,12 @@ import yaml
 import pandas as pd
 import requests
 
+from imd_paths import frozen_app_data_dir
+
 
 def app_root_dir() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        return frozen_app_data_dir(sys.executable)
     return Path(__file__).resolve().parent
 
 

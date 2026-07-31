@@ -57,3 +57,36 @@ def test_pages_loads_latest_release_version_safely():
     assert "repos/rafabios/imd/releases/latest" in script
     assert "node.textContent = tag" in script
     assert "innerHTML" not in script
+
+
+def test_macos_workflow_builds_both_architectures_without_developer_certificate():
+    workflow = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+    spec = (ROOT / "packaging" / "IMD-macos.spec").read_text(encoding="utf-8")
+
+    assert "macos-15-intel" in workflow
+    assert "macos-15" in workflow
+    assert "Apple-Silicon" in workflow
+    assert "hdiutil create" in workflow
+    assert "hdiutil verify" in workflow
+    assert "codesign --verify --deep --strict" in workflow
+    assert '"$bundled_ffmpeg" -version' in workflow
+    assert "notarytool" not in workflow
+    assert "APPLE_CERTIFICATE" not in workflow
+    assert "BUNDLE(" in spec
+    assert 'codesign_identity=None' in spec
+
+
+def test_pages_offer_macos_downloads():
+    source = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+
+    assert "latest-macOS-Apple-Silicon.dmg" in source
+    assert "latest-macOS-Intel.dmg" in source
+    assert 'id="install-macos"' in source
+
+
+def test_macos_dmg_includes_unlock_instructions():
+    instructions = (ROOT / "packaging" / "macos" / "LEIA-ME-macOS.txt").read_text(encoding="utf-8")
+
+    assert "Abrir Mesmo Assim" in instructions
+    assert "xattr -dr com.apple.quarantine" in instructions
+    assert "desativar o Gatekeeper globalmente" in instructions

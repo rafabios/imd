@@ -2,13 +2,14 @@
 
 # IMD — Insane Music Downloader
 
-Painel local para importar listas, localizar faixas, baixar áudio, converter formatos e organizar uma biblioteca de músicas no Windows.
+Painel local para importar listas, localizar faixas, baixar áudio, converter formatos e organizar uma biblioteca de músicas no Windows e no macOS.
 
 [![Última release](https://img.shields.io/github/v/release/rafabios/imd?label=vers%C3%A3o&color=13a38b)](https://github.com/rafabios/imd/releases/latest)
 [![Build Windows](https://img.shields.io/github/actions/workflow/status/rafabios/imd/build-msi.yml?label=build%20Windows)](https://github.com/rafabios/imd/actions/workflows/build-msi.yml)
+[![Build macOS](https://img.shields.io/github/actions/workflow/status/rafabios/imd/build-macos.yml?label=build%20macOS)](https://github.com/rafabios/imd/actions/workflows/build-macos.yml)
 [![Licença GPL-3.0](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-e55372)](LICENSE)
 
-[Site e manual](https://imd.vemcompy.tec.br/) · [Baixar Setup.exe](https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest-Setup.exe) · [Todas as releases](https://github.com/rafabios/imd/releases)
+[Site e manual](https://imd.vemcompy.tec.br/) · [Baixar para Windows](https://github.com/rafabios/imd/releases/latest/download/IMD-Insane-Music-Downloader-latest-Setup.exe) · [Baixar para macOS](https://github.com/rafabios/imd/releases/latest) · [Todas as releases](https://github.com/rafabios/imd/releases)
 
 </div>
 
@@ -47,6 +48,24 @@ Se o Windows impedir a execução, consulte o guia com imagens em [Problemas com
 ### Opção técnica: MSI
 
 O arquivo `IMD-Insane-Music-Downloader-latest.msi` é mantido para instalação silenciosa, automação e administração de máquinas Windows.
+
+## Instalação no macOS
+
+Há dois pacotes sem certificado Apple Developer e sem notarização:
+
+- `IMD-Insane-Music-Downloader-latest-macOS-Apple-Silicon.dmg` para Macs com chips Apple M1, M2, M3, M4 ou posteriores;
+- `IMD-Insane-Music-Downloader-latest-macOS-Intel.dmg` para Macs Intel.
+
+Abra o DMG e arraste `IMD.app` para **Aplicativos**. Como o pacote não é notarizado, o macOS pode bloquear a primeira abertura. Depois de tentar abrir o app uma vez, acesse **Ajustes do Sistema → Privacidade e Segurança → Abrir Mesmo Assim** e confirme em **Abrir**.
+
+Se ainda for necessário e você tiver conferido a origem e o SHA256 publicado na release, use:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/IMD.app"
+open "/Applications/IMD.app"
+```
+
+Não é necessário desativar o Gatekeeper globalmente. O aplicativo inclui Python, dependências e FFmpeg; configurações ficam em `~/Library/Application Support/IMD Insane Music Downloader`.
 
 ## Primeiros passos
 
@@ -102,7 +121,7 @@ Modos do Spotify:
 
 ## Executar pelo código-fonte
 
-Recomendado: Windows e Python 3.12.
+Recomendado: Python 3.12 no Windows ou macOS.
 
 ```powershell
 py -3.12 -m venv .venv
@@ -120,16 +139,18 @@ O `imd_launcher.py` prepara o ambiente, verifica o `yt-dlp`, inicia o servidor l
 .\.venv\Scripts\python.exe -m py_compile app_server.py music_downloader.py imd_launcher.py
 ```
 
-## Gerar uma release Windows
+## Gerar uma release
 
 O workflow [`build-msi.yml`](.github/workflows/build-msi.yml) executa os testes e gera o aplicativo portátil, Setup EXE, MSI e `SHA256SUMS.txt`.
+
+O workflow [`build-macos.yml`](.github/workflows/build-macos.yml) gera DMGs separados para Intel e Apple Silicon, executa o `.app`, valida o FFmpeg incorporado e publica os hashes SHA256.
 
 ```bash
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-Tags `v*` publicam os instaladores na página de releases. O workflow também pode ser iniciado manualmente em **Actions → Build Windows Installers**.
+Tags `v*` executam as duas pipelines e publicam os instaladores na página de releases. Cada workflow também pode ser iniciado manualmente na aba **Actions**.
 
 ## Docker
 
@@ -159,7 +180,7 @@ docker run --rm -it \
 | `imd_launcher.py` | Inicialização do painel e atualização isolada do `yt-dlp` |
 | `web/` | Interface local do aplicativo |
 | `docs/` | Site, manual e GitHub Pages |
-| `packaging/` | PyInstaller, WiX e Inno Setup |
+| `packaging/` | PyInstaller, WiX, Inno Setup e bundle macOS |
 | `tests/` | Testes automatizados |
 
 ## Privacidade e segurança

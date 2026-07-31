@@ -377,6 +377,8 @@ def detect_bpm(path: str) -> Optional[int]:
 # yt-dlp
 # =========================
 def bundled_ffmpeg_dir() -> Optional[str]:
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    ffprobe_name = "ffprobe.exe" if sys.platform == "win32" else "ffprobe"
     roots = [
         Path.cwd(),
         Path(getattr(sys, "_MEIPASS", "")) if getattr(sys, "_MEIPASS", None) else None,
@@ -386,7 +388,7 @@ def bundled_ffmpeg_dir() -> Optional[str]:
         if not root:
             continue
         for candidate in (root / "vendor" / "ffmpeg", root / "_internal" / "vendor" / "ffmpeg"):
-            if (candidate / "ffmpeg.exe").exists() and (candidate / "ffprobe.exe").exists():
+            if (candidate / ffmpeg_name).exists() and (candidate / ffprobe_name).exists():
                 return str(candidate)
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
@@ -460,7 +462,8 @@ def convert_existing_to_mp3(source_path: str) -> Optional[str]:
     if os.path.exists(destination):
         return destination
     ffmpeg_dir = bundled_ffmpeg_dir()
-    ffmpeg_exe = str(Path(ffmpeg_dir) / "ffmpeg.exe") if ffmpeg_dir else (shutil.which("ffmpeg") or "")
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    ffmpeg_exe = str(Path(ffmpeg_dir) / ffmpeg_name) if ffmpeg_dir else (shutil.which("ffmpeg") or "")
     if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
         log_error(f"[YOUTUBE] Nao foi possivel converter para mp3 sem ffmpeg: {source_path}")
         return None
@@ -1374,7 +1377,7 @@ def main():
         raise RuntimeError("google_sheet_csv nao foi definido no config.yaml")
 
     if AUDIO_FORMAT == "mp3" and not bundled_ffmpeg_dir():
-        raise RuntimeError("audio.format=mp3 precisa do ffmpeg/ffprobe. Reinstale usando o Setup.exe mais recente ou instale o ffmpeg no Windows.")
+        raise RuntimeError("audio.format=mp3 precisa do ffmpeg/ffprobe. Reinstale o IMD ou instale o FFmpeg no sistema.")
 
     log("Starting...")
     log(f"Modo reescan playlists/artistas: {'SIM' if reescan_list else 'NAO'}")

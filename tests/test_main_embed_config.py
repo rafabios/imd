@@ -341,6 +341,17 @@ def test_conversion_dry_run_does_not_create_or_delete_files(app, tmp_path):
     assert not (tmp_path / "song.mp3").exists()
 
 
+def test_bundled_ffmpeg_uses_native_binary_names_on_macos(app, monkeypatch, tmp_path):
+    ffmpeg_dir = tmp_path / "vendor" / "ffmpeg"
+    ffmpeg_dir.mkdir(parents=True)
+    (ffmpeg_dir / "ffmpeg").write_bytes(b"binary")
+    (ffmpeg_dir / "ffprobe").write_bytes(b"binary")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(app.sys, "platform", "darwin")
+
+    assert app.bundled_ffmpeg_dir() == str(ffmpeg_dir)
+
+
 def test_run_conversion_mode_dry_run(app, monkeypatch, tmp_path):
     source = tmp_path / "song.m4a"
     source.write_bytes(b"fake")

@@ -1,0 +1,45 @@
+IMD Insane Music Downloader para macOS
+======================================
+
+INSTALACAO
+
+1. Arraste IMD.app para o atalho Aplicativos desta imagem.
+2. Na pasta Aplicativos, tente abrir IMD.app.
+3. O painel sera aberto no navegador. O icone do IMD permanece no Dock
+   enquanto o servidor local estiver em execucao.
+4. Para encerrar o servidor, clique com o botao direito no icone do Dock e
+   escolha Encerrar.
+
+SE O macOS BLOQUEAR O APLICATIVO
+
+Este pacote nao usa certificado Apple Developer e nao foi notarizado.
+O macOS pode informar que nao consegue verificar o desenvolvedor.
+
+Metodo recomendado:
+
+1. Tente abrir IMD.app uma vez e feche o aviso.
+2. Abra Ajustes do Sistema > Privacidade e Seguranca.
+3. Role ate Seguranca e clique em Abrir Mesmo Assim.
+4. Confirme clicando em Abrir.
+
+Alternativa pelo Terminal, somente se voce baixou o arquivo da pagina oficial
+do projeto e conferiu o SHA256 publicado na release:
+
+  xattr -dr com.apple.quarantine "/Applications/IMD.app"
+  open "/Applications/IMD.app"
+
+Nao e necessario desativar o Gatekeeper globalmente.
+
+ARQUIVOS DO USUARIO
+
+Configuracao e atualizacoes:
+  ~/Library/Application Support/IMD Insane Music Downloader
+
+Musicas:
+  ~/Music/IMD
+
+Historico e estado:
+  ~/Music/IMD-State
+
+Projeto oficial:
+  https://github.com/rafabios/imd
