@@ -29,6 +29,7 @@ O IMD roda no próprio computador e abre uma interface em `http://127.0.0.1:8765
 - reescaneamento de playlists sem baixar novamente o que já existe;
 - conversão em lote entre MP3, M4A, MP4, FLAC, WAV, OGG, OPUS e AAC;
 - preenchimento de metadados e miniaturas quando habilitado;
+- análise técnica da biblioteca ou de arquivos arrastados, com loudness, true peak, faixa dinâmica e classificação Boa, Média ou Ruim;
 - histórico de sucessos, falhas e tentativas;
 - atualização diária isolada do `yt-dlp` no aplicativo empacotado.
 
@@ -138,7 +139,7 @@ O `imd_launcher.py` prepara o ambiente, verifica o `yt-dlp`, inicia o servidor l
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m py_compile app_server.py music_downloader.py imd_launcher.py
+.\.venv\Scripts\python.exe -m py_compile app_server.py music_downloader.py imd_launcher.py audio_analysis.py
 ```
 
 ## Gerar uma release
@@ -178,6 +179,7 @@ docker run --rm -it \
 | Caminho | Responsabilidade |
 |---|---|
 | `music_downloader.py` | Spotify, pesquisas, downloads, conversão, tags e histórico |
+| `audio_analysis.py` | Análise técnica de loudness, pico real e qualidade dos arquivos de áudio |
 | `app_server.py` | API HTTP, arquivos importados e gerenciamento de tarefas |
 | `imd_launcher.py` | Inicialização do painel e atualização isolada do `yt-dlp` |
 | `web/` | Interface local do aplicativo |

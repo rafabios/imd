@@ -204,6 +204,7 @@ def prepare_runtime(root: Path) -> None:
     resources = resource_dir()
     ffmpeg_dir = resources / "vendor" / "ffmpeg"
     if ffmpeg_dir.exists():
+        os.environ["IMD_FFMPEG_DIR"] = str(ffmpeg_dir)
         os.environ["PATH"] = str(ffmpeg_dir) + os.pathsep + os.environ.get("PATH", "")
 
     config_file = root / "config.yaml"
@@ -229,6 +230,12 @@ def main() -> None:
         import music_downloader
 
         music_downloader.main()
+        return
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--analysis-worker":
+        import audio_analysis
+
+        audio_analysis.main(sys.argv[2:])
         return
 
     print_banner()

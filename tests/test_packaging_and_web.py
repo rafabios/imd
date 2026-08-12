@@ -47,6 +47,33 @@ def test_web_exposes_tagging_shortcut_and_flexible_row_selection():
     assert ".tag-action" in styles
 
 
+def test_web_exposes_music_analysis_library_scan_and_drag_drop():
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+    styles = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+
+    assert html.count("data-open-analysis") == 2
+    assert 'id="analysis"' in html
+    assert 'id="start-library-analysis"' in html
+    assert 'id="analysis-drop-zone"' in html
+    assert 'id="analysis-file"' in html
+    assert 'id="analysis-chart"' in html
+    assert "/api/analysis/start-library" in script
+    assert "/api/analysis/upload" in script
+    assert 'addEventListener("drop"' in script
+    assert "drawAnalysisChart" in script
+    assert ".analysis-action" in styles
+    assert ".quality-badge.good" in styles
+
+
+def test_workflows_compile_audio_analysis_module():
+    windows = (ROOT / ".github" / "workflows" / "build-msi.yml").read_text(encoding="utf-8")
+    macos = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+
+    assert "py_compile app_server.py music_downloader.py imd_launcher.py audio_analysis.py" in windows
+    assert "py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py audio_analysis.py" in macos
+
+
 def test_docker_entrypoint_exists():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 

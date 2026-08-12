@@ -3,6 +3,7 @@ import hashlib
 
 import pytest
 
+import audio_analysis
 import imd_launcher
 
 
@@ -29,6 +30,22 @@ def test_create_initial_config_uses_real_user_directories(monkeypatch, tmp_path)
     assert (tmp_path / "Music" / "IMD").as_posix() in content
     assert (tmp_path / "Music" / "IMD-State").as_posix() in content
     assert "SEU_USUARIO" not in content
+
+
+def test_main_routes_packaged_analysis_worker(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(imd_launcher, "app_dir", lambda: tmp_path)
+    monkeypatch.setattr(imd_launcher, "prepare_runtime", lambda root: None)
+    monkeypatch.setattr(audio_analysis, "main", lambda args=None: calls.append(args))
+    monkeypatch.setattr(
+        imd_launcher.sys,
+        "argv",
+        ["IMD.exe", "--analysis-worker", "--library", "C:/Music", "--output", "report.json"],
+    )
+
+    imd_launcher.main()
+
+    assert calls == [["--library", "C:/Music", "--output", "report.json"]]
 
 
 def test_check_yt_dlp_update_downloads_new_wheel(monkeypatch, tmp_path):

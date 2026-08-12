@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>IMD Insane Music Downloader</title>
-    <link rel="stylesheet" href="/styles.css?v=20260812-row-selection1" />
+    <link rel="stylesheet" href="/styles.css?v=20260812-audio-analysis1" />
   </head>
   <body>
     <div class="app-shell">
@@ -16,9 +16,10 @@
             <small>Insane Music Downloader</small>
           </div>
         </div>
-        <div class="sidebar-actions" aria-label="Downloads rapidos">
+        <div class="sidebar-actions" aria-label="Ações rápidas">
           <button class="sidebar-action spotify-action" type="button" data-download-shortcut="spotify_playlist">Download Spotify</button>
           <button class="sidebar-action youtube-action" type="button" data-download-shortcut="youtube_search">Download YouTube</button>
+          <button class="sidebar-action analysis-action" type="button" data-open-analysis>Análise de Música</button>
           <button class="sidebar-action tag-action" type="button" data-tag-music>Tagear Músicas</button>
           <button class="sidebar-action folder-action" type="button" data-open-music-folder>Pasta de Musicas</button>
         </div>
@@ -26,6 +27,7 @@
           <a class="active" href="#dashboard">Inicio</a>
           <a href="#config">Configuracoes</a>
           <a href="#conversion">Conversao</a>
+          <a href="#analysis">Analise</a>
           <a href="#download">Download</a>
           <a href="#sheets">Planilha</a>
           <a href="#import">Importacao</a>
@@ -49,7 +51,7 @@
           <article class="panel start-panel">
             <div class="panel-heading">
               <p class="eyebrow">Comecar</p>
-              <h2>Baixar musica</h2>
+              <h2>Ações rápidas</h2>
             </div>
             <div class="start-actions">
               <button class="start-action spotify-action" type="button" data-download-shortcut="spotify_playlist">
@@ -59,6 +61,10 @@
               <button class="start-action youtube-action" type="button" data-download-shortcut="youtube_search">
                 <span>YouTube</span>
                 <small>Artista e musica</small>
+              </button>
+              <button class="start-action analysis-action" type="button" data-open-analysis>
+                <span>Análise de Música</span>
+                <small>Decibéis e qualidade técnica</small>
               </button>
               <button class="start-action tag-action" type="button" data-tag-music>
                 <span>Tagear Músicas</span>
@@ -132,6 +138,77 @@
           </div>
           <input id="conversion-log-filter" class="log-filter" type="search" placeholder="Filtrar log da conversao" />
           <pre id="conversion-log" class="task-log">Nenhuma conversao iniciada nesta sessao.</pre>
+        </section>
+
+        <section id="analysis" class="panel wide-panel">
+          <div class="panel-heading split-heading">
+            <div>
+              <p class="eyebrow">LOUDNESS E ESPECTRO</p>
+              <h2>Análise de Música</h2>
+              <p class="section-copy">Análise somente leitura, inspirada no Spek, com loudness em LUFS, pico real em dBTP e faixa dinâmica.</p>
+            </div>
+            <div class="button-row">
+              <button id="start-library-analysis" class="primary-button" type="button">Analisar biblioteca</button>
+              <button id="cancel-analysis" class="secondary-button" type="button" disabled>Parar</button>
+            </div>
+          </div>
+          <div class="conversion-status-grid">
+            <div class="metric">
+              <span>Status</span>
+              <strong id="analysis-status">Sem análise</strong>
+            </div>
+            <div class="metric">
+              <span>Progresso</span>
+              <strong id="analysis-progress">0 / 0</strong>
+            </div>
+            <div class="metric">
+              <span>Relatório da biblioteca</span>
+              <strong id="analysis-generated">Vazio</strong>
+            </div>
+          </div>
+          <div id="analysis-summary" class="metric-grid compact-metrics"></div>
+          <div class="analysis-workspace">
+            <label id="analysis-drop-zone" class="analysis-drop-zone" tabindex="0">
+              <input id="analysis-file" type="file" accept=".mp3,.m4a,.mp4,.flac,.wav,.ogg,.opus,.aac,audio/*" multiple />
+              <strong>Arraste músicas aqui</strong>
+              <span>ou clique para escolher arquivos de até 100 MB cada</span>
+              <small>MP3, M4A, MP4, FLAC, WAV, OGG, OPUS e AAC</small>
+            </label>
+            <div class="analysis-visual">
+              <div class="analysis-visual-heading">
+                <div>
+                  <strong id="analysis-chart-title">Loudness ao longo do tempo</strong>
+                  <small id="analysis-chart-subtitle">Selecione um resultado para ver os níveis em LUFS.</small>
+                </div>
+                <span id="analysis-chart-rating" class="quality-badge">Sem nota</span>
+              </div>
+              <canvas id="analysis-chart" width="960" height="300" aria-label="Gráfico de loudness da música"></canvas>
+            </div>
+          </div>
+          <div id="analysis-message" class="save-status" aria-live="polite"></div>
+          <div id="analysis-detail" class="analysis-detail"></div>
+          <div class="table-wrap">
+            <table class="sheet-table analysis-table">
+              <thead>
+                <tr>
+                  <th>Qualidade</th>
+                  <th>Arquivo</th>
+                  <th>LUFS</th>
+                  <th>Pico dBTP</th>
+                  <th>Faixa LU</th>
+                  <th>Formato</th>
+                  <th>Bitrate</th>
+                  <th>Nota</th>
+                </tr>
+              </thead>
+              <tbody id="analysis-results">
+                <tr><td colspan="8">Analise a biblioteca ou arraste uma música para começar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <input id="analysis-log-filter" class="log-filter" type="search" placeholder="Filtrar log da análise" />
+          <pre id="analysis-log" class="task-log analysis-log">Nenhuma análise iniciada nesta sessão.</pre>
+          <p class="analysis-disclaimer">A nota aponta riscos técnicos; ela não prova a origem, autenticidade ou qualidade artística da gravação.</p>
         </section>
 
         <section id="sheets" class="panel wide-panel">
@@ -408,6 +485,6 @@
       </main>
     </div>
 
-    <script src="/app.js?v=20260812-row-selection1"></script>
+    <script src="/app.js?v=20260812-audio-analysis1"></script>
   </body>
 </html>

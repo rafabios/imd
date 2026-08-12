@@ -80,7 +80,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pytest -q
-          python -m py_compile app_server.py music_downloader.py imd_launcher.py
+          python -m py_compile app_server.py music_downloader.py imd_launcher.py audio_analysis.py
 
       - name: Build portable app folder
         shell: pwsh

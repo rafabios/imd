@@ -141,6 +141,22 @@ def test_worker_command_switches_when_packaged(monkeypatch):
     assert command == [r"C:\IMD\IMD.exe", "--worker", "--conversion-only"]
 
 
+def test_analysis_worker_command_switches_when_packaged(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_server.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(app_server.sys, "executable", r"C:\IMD\IMD.exe")
+
+    command = app_server.analysis_worker_command(tmp_path / "music", tmp_path / "report.json")
+
+    assert command == [
+        r"C:\IMD\IMD.exe",
+        "--analysis-worker",
+        "--library",
+        str(tmp_path / "music"),
+        "--output",
+        str(tmp_path / "report.json"),
+    ]
+
+
 def test_resource_root_uses_pyinstaller_meipass(monkeypatch, tmp_path):
     monkeypatch.setattr(app_server.sys, "_MEIPASS", str(tmp_path), raising=False)
 
@@ -237,6 +253,81 @@ def test_start_tag_music_task_builds_standalone_tag_command(monkeypatch):
     assert captured["kind"] == "download"
     assert "--tagmusic" in captured["command"]
     assert "--no-tag-force" in captured["command"]
+
+
+def test_start_music_analysis_task_builds_read_only_worker_command(monkeypatch, tmp_path):
+    library = tmp_path / "music"
+    library.mkdir()
+    report = tmp_path / "analysis" / "report.json"
+    captured = {}
+
+    def fake_start_background_task(kind, command):
+        captured["kind"] = kind
+        captured["command"] = command
+        return app_server.BackgroundTask(id="analysis-task", kind=kind, command=command)
+
+    monkeypatch.setattr(app_server, "configured_music_dir", lambda: library)
+    monkeypatch.setattr(app_server, "ANALYSIS_DIR", report.parent)
+    monkeypatch.setattr(app_server, "ANALYSIS_REPORT_FILE", report)
+    monkeypatch.setattr(app_server, "start_background_task", fake_start_background_task)
+
+    result = app_server.start_music_analysis_task()
+
+    assert result["ok"] is True
+    assert captured["kind"] == "analysis"
+    assert captured["command"][captured["command"].index("--library") + 1] == str(library)
+    assert captured["command"][captured["command"].index("--output") + 1] == str(report)
+    assert "--analyze" not in captured["command"]
+
+
+def test_analysis_progress_is_extracted_from_worker_logs():
+    task = app_server.BackgroundTask(id="analysis-progress", kind="analysis", command=["python"])
+
+    for line in (
+        "Analise: arquivos=3",
+        "Analisando [1/3]: one.mp3",
+        "Resultado: Boa | score=95",
+        "Analisando [2/3]: two.mp3",
+        "Falha: two.mp3 | arquivo corrompido",
+        "Analisando [3/3]: three.flac",
+        "Resultado: Media | score=70",
+        "Analise concluida: arquivos=3 | boas=1 | medias=1 | ruins=1 | falhas=1",
+    ):
+        app_server.update_task_progress_from_line(task, line)
+
+    assert task.progress == {
+        "total": 3,
+        "processed": 3,
+        "phase": "analysis",
+        "good": 1,
+        "medium": 1,
+        "bad": 1,
+        "errors": 1,
+        "done": True,
+    }
+
+
+def test_analyze_uploaded_audio_uses_temporary_copy_and_removes_it(monkeypatch, tmp_path):
+    import audio_analysis
+
+    captured = {}
+
+    def fake_analyze(path, display_name=""):
+        captured["path"] = app_server.Path(path)
+        captured["display_name"] = display_name
+        assert captured["path"].is_file()
+        return {"file": display_name, "rating": "good", "rating_label": "Boa", "score": 90}
+
+    monkeypatch.setattr(app_server, "ANALYSIS_UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(audio_analysis, "analyze_audio_file", fake_analyze)
+
+    result = app_server.analyze_uploaded_audio("../Minha Musica.mp3", b"audio")
+
+    assert result["ok"] is True
+    assert result["result"]["file"] == "Minha Musica.mp3"
+    assert captured["display_name"] == "Minha Musica.mp3"
+    assert not captured["path"].exists()
+    assert not list((tmp_path / "uploads").glob("*"))
 
 
 def test_start_download_task_rejects_parallel_download(monkeypatch):
@@ -755,6 +846,47 @@ def test_http_tag_music_endpoint_starts_safe_fill_missing_mode(monkeypatch):
     assert payload["ok"] is True
     assert payload["task"]["id"] == "tag-http"
     assert calls == [False]
+
+
+def test_http_audio_analysis_upload_endpoint(monkeypatch):
+    captured = {}
+
+    def fake_analyze_uploaded_audio(filename, content):
+        captured["filename"] = filename
+        captured["content"] = content
+        return {
+            "ok": True,
+            "result": {"file": filename, "rating": "good", "rating_label": "Boa", "score": 92},
+        }
+
+    monkeypatch.setattr(app_server, "analyze_uploaded_audio", fake_analyze_uploaded_audio)
+    boundary = "----pytest-audio-" + uuid.uuid4().hex
+    body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="file"; filename="track.mp3"\r\n'
+        "Content-Type: audio/mpeg\r\n\r\n"
+    ).encode("utf-8") + b"audio-bytes\r\n" + f"--{boundary}--\r\n".encode("utf-8")
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app_server.AppHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/api/analysis/upload"
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["ok"] is True
+    assert payload["result"]["rating"] == "good"
+    assert captured == {"filename": "track.mp3", "content": b"audio-bytes"}
 
 
 def test_http_import_preview_endpoint():

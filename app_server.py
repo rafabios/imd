@@ -52,20 +52,33 @@ CONFIG_FILE = ROOT_DIR / "config.yaml"
 SAMPLE_CONFIG_FILE = RESOURCE_DIR / "config.sample.yaml"
 BACKUP_DIR = ROOT_DIR / "config_backups"
 SCRIPT_FILE = ROOT_DIR / "music_downloader.py"
+ANALYSIS_SCRIPT_FILE = ROOT_DIR / "audio_analysis.py"
 IMPORT_DIR = ROOT_DIR / "imports"
 TASK_DIR = ROOT_DIR / "tasks"
+ANALYSIS_DIR = ROOT_DIR / "analysis"
+ANALYSIS_REPORT_FILE = ANALYSIS_DIR / "library-report.json"
+ANALYSIS_UPLOAD_DIR = ANALYSIS_DIR / "uploads"
 TASK_LOCK = threading.RLock()
 TASKS: Dict[str, "BackgroundTask"] = {}
 IMPORTS: Dict[str, Dict[str, Any]] = {}
 ACTIVE_TASK_STATUSES = {"pending", "running", "canceling"}
 MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
 MAX_UPLOAD_BODY_BYTES = 25 * 1024 * 1024
+MAX_AUDIO_UPLOAD_FILE_BYTES = 100 * 1024 * 1024
+MAX_AUDIO_UPLOAD_BODY_BYTES = MAX_AUDIO_UPLOAD_FILE_BYTES + 1024 * 1024
 
 
 def worker_command(*args: str) -> List[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--worker", *args]
     return [sys.executable, str(SCRIPT_FILE), *args]
+
+
+def analysis_worker_command(library: Path, output: Path) -> List[str]:
+    args = ["--library", str(library), "--output", str(output)]
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--analysis-worker", *args]
+    return [sys.executable, str(ANALYSIS_SCRIPT_FILE), *args]
 
 
 @dataclass
@@ -237,6 +250,26 @@ def load_persisted_tasks() -> None:
 
 
 def update_task_progress_from_line(task: BackgroundTask, line: str) -> None:
+    if task.kind == "analysis" and "Analise: arquivos=" in line:
+        match = re.search(r"arquivos=(\d+)", line)
+        if match:
+            task.progress.update({"total": int(match.group(1)), "processed": 0, "phase": "analysis"})
+    if task.kind == "analysis" and line.startswith("Analisando ["):
+        match = re.search(r"\[(\d+)/(\d+)\]", line)
+        if match:
+            task.progress.update({"processed": int(match.group(1)) - 1, "total": int(match.group(2))})
+    if task.kind == "analysis" and (line.startswith("Resultado:") or line.startswith("Falha:")):
+        task.progress["processed"] = min(
+            int(task.progress.get("total") or 0),
+            int(task.progress.get("processed") or 0) + 1,
+        )
+    if task.kind == "analysis" and "Analise concluida:" in line:
+        for key, label in (("total", "arquivos"), ("good", "boas"), ("medium", "medias"), ("bad", "ruins"), ("errors", "falhas")):
+            match = re.search(label + r"=(\d+)", line)
+            if match:
+                task.progress[key] = int(match.group(1))
+        task.progress["processed"] = task.progress.get("total", 0)
+        task.progress["done"] = True
     if "Conversao:" in line and "arquivos=" in line:
         match = re.search(r"arquivos=(\d+)", line)
         if match:
@@ -389,12 +422,21 @@ def failure_lines_to_rows(lines: List[str]) -> List[Dict[str, Any]]:
 
 
 def environment_payload() -> Dict[str, Any]:
+    try:
+        from audio_analysis import resolve_media_binary
+
+        ffmpeg_path = resolve_media_binary("ffmpeg")
+        ffprobe_path = resolve_media_binary("ffprobe")
+    except Exception:
+        ffmpeg_path = shutil.which("ffmpeg") or ""
+        ffprobe_path = shutil.which("ffprobe") or ""
     config = read_yaml_file(CONFIG_FILE)
     paths = config.get("paths", {}) if isinstance(config.get("paths"), dict) else {}
     source = config.get("source", {}) if isinstance(config.get("source"), dict) else {}
     checks = [
         {"name": "Python", "ok": True, "detail": sys.version.split()[0]},
-        {"name": "ffmpeg", "ok": bool(shutil.which("ffmpeg")), "detail": shutil.which("ffmpeg") or "nao encontrado"},
+        {"name": "ffmpeg", "ok": bool(ffmpeg_path), "detail": ffmpeg_path or "nao encontrado"},
+        {"name": "ffprobe", "ok": bool(ffprobe_path), "detail": ffprobe_path or "nao encontrado"},
         {"name": "yt-dlp", "ok": True, "detail": "importado"},
         {"name": "pandas", "ok": True, "detail": pd.__version__},
         {"name": "config.yaml", "ok": CONFIG_FILE.exists(), "detail": str(CONFIG_FILE)},
@@ -422,6 +464,74 @@ def open_music_folder() -> Dict[str, Any]:
         subprocess.Popen(["xdg-open", str(folder)])
 
     return {"ok": True, "path": str(folder)}
+
+
+def configured_music_dir() -> Path:
+    config = read_yaml_file(CONFIG_FILE)
+    music_dir = str((config.get("paths") or {}).get("music_dir") or "").strip()
+    if not music_dir:
+        raise RuntimeError("Configure paths.music_dir antes de analisar a biblioteca.")
+    return Path(music_dir).expanduser().resolve()
+
+
+def start_music_analysis_task() -> Dict[str, Any]:
+    try:
+        library = configured_music_dir()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    if not library.is_dir():
+        return {"ok": False, "error": f"Pasta da biblioteca nao encontrada: {library}"}
+
+    with TASK_LOCK:
+        current = active_task("analysis")
+        if current:
+            return {"ok": False, "error": "Ja existe uma analise em andamento.", "task": current.snapshot()}
+        ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
+        command = analysis_worker_command(library, ANALYSIS_REPORT_FILE)
+        task = start_background_task("analysis", command)
+    return {"ok": True, "task": task.snapshot()}
+
+
+def load_analysis_report() -> Dict[str, Any] | None:
+    if not ANALYSIS_REPORT_FILE.is_file():
+        return None
+    try:
+        data = json.loads(ANALYSIS_REPORT_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def latest_analysis_payload() -> Dict[str, Any]:
+    task = latest_task("analysis")
+    return {
+        "ok": True,
+        "task": task.snapshot() if task else None,
+        "report": load_analysis_report(),
+    }
+
+
+def analyze_uploaded_audio(filename: str, content: bytes) -> Dict[str, Any]:
+    from audio_analysis import AUDIO_EXTENSIONS, analyze_audio_file
+
+    safe_name = Path(str(filename or "musica")).name
+    extension = Path(safe_name).suffix.lower()
+    if extension not in AUDIO_EXTENSIONS:
+        supported = ", ".join(sorted(AUDIO_EXTENSIONS))
+        raise ValueError(f"Formato nao suportado. Use: {supported}.")
+    if not content:
+        raise ValueError("O arquivo de audio esta vazio.")
+    if len(content) > MAX_AUDIO_UPLOAD_FILE_BYTES:
+        raise ValueError("O arquivo de audio excede o limite de 100 MB.")
+
+    ANALYSIS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    temporary = ANALYSIS_UPLOAD_DIR / f"{uuid.uuid4().hex}{extension}"
+    temporary.write_bytes(content)
+    try:
+        result = analyze_audio_file(temporary, display_name=safe_name)
+        return {"ok": True, "result": result}
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def spotify_check_payload(url: str) -> Dict[str, Any]:
@@ -884,6 +994,9 @@ class AppHandler(BaseHTTPRequestHandler):
             task = latest_task("download")
             self.send_json({"ok": True, "task": task.snapshot() if task else None})
             return
+        if parsed.path == "/api/analysis/latest":
+            self.send_json(latest_analysis_payload())
+            return
         if parsed.path == "/api/tasks":
             self.send_json(all_tasks_payload())
             return
@@ -954,6 +1067,20 @@ class AppHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json({"ok": False, "error": format_error(e)}, status=500)
             return
+        if parsed.path == "/api/analysis/start-library":
+            try:
+                result = start_music_analysis_task()
+                self.send_json(result, status=200 if result.get("ok") else 409)
+            except Exception as e:
+                self.send_json({"ok": False, "error": format_error(e)}, status=500)
+            return
+        if parsed.path == "/api/analysis/upload":
+            try:
+                filename, content = self.read_multipart_file("file", MAX_AUDIO_UPLOAD_BODY_BYTES)
+                self.send_json(analyze_uploaded_audio(filename, content))
+            except Exception as e:
+                self.send_json({"ok": False, "error": format_error(e)}, status=400)
+            return
         if parsed.path == "/api/import/start":
             try:
                 payload = self.read_json_body()
@@ -1007,11 +1134,15 @@ class AppHandler(BaseHTTPRequestHandler):
         return data
 
     def read_upload_preview(self) -> Dict[str, Any]:
+        filename, content = self.read_multipart_file("file", MAX_UPLOAD_BODY_BYTES)
+        return parse_import_file(filename, content)
+
+    def read_multipart_file(self, field_name: str, limit: int) -> Tuple[str, bytes]:
         content_type = str(self.headers.get("Content-Type") or "")
         if "multipart/form-data" not in content_type.lower():
             raise ValueError("Envie o arquivo como multipart/form-data.")
 
-        body = self.read_limited_body(MAX_UPLOAD_BODY_BYTES)
+        body = self.read_limited_body(limit)
         message = BytesParser(policy=email_policy).parsebytes(
             f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("ascii") + body
         )
@@ -1019,14 +1150,14 @@ class AppHandler(BaseHTTPRequestHandler):
             (
                 part
                 for part in message.iter_parts()
-                if part.get_param("name", header="content-disposition") == "file" and part.get_filename()
+                if part.get_param("name", header="content-disposition") == field_name and part.get_filename()
             ),
             None,
         )
         if file_part is None:
-            raise ValueError("Envie um arquivo no campo file.")
+            raise ValueError(f"Envie um arquivo no campo {field_name}.")
         content = file_part.get_payload(decode=True) or b""
-        return parse_import_file(str(file_part.get_filename()), content)
+        return str(file_part.get_filename()), content
 
     def read_limited_body(self, limit: int) -> bytes:
         length = int(self.headers.get("Content-Length", "0") or "0")

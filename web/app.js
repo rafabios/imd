@@ -14,6 +14,23 @@ const conversionStartedEl = document.querySelector("#conversion-started");
 const conversionFinishedEl = document.querySelector("#conversion-finished");
 const conversionLogEl = document.querySelector("#conversion-log");
 const conversionLogFilterEl = document.querySelector("#conversion-log-filter");
+const startLibraryAnalysisEl = document.querySelector("#start-library-analysis");
+const cancelAnalysisEl = document.querySelector("#cancel-analysis");
+const analysisStatusEl = document.querySelector("#analysis-status");
+const analysisProgressEl = document.querySelector("#analysis-progress");
+const analysisGeneratedEl = document.querySelector("#analysis-generated");
+const analysisSummaryEl = document.querySelector("#analysis-summary");
+const analysisDropZoneEl = document.querySelector("#analysis-drop-zone");
+const analysisFileEl = document.querySelector("#analysis-file");
+const analysisChartEl = document.querySelector("#analysis-chart");
+const analysisChartTitleEl = document.querySelector("#analysis-chart-title");
+const analysisChartSubtitleEl = document.querySelector("#analysis-chart-subtitle");
+const analysisChartRatingEl = document.querySelector("#analysis-chart-rating");
+const analysisMessageEl = document.querySelector("#analysis-message");
+const analysisDetailEl = document.querySelector("#analysis-detail");
+const analysisResultsEl = document.querySelector("#analysis-results");
+const analysisLogEl = document.querySelector("#analysis-log");
+const analysisLogFilterEl = document.querySelector("#analysis-log-filter");
 const loadSheetEl = document.querySelector("#load-sheet");
 const validateSheetEl = document.querySelector("#validate-sheet");
 const downloadSelectedSheetEl = document.querySelector("#download-selected-sheet");
@@ -73,6 +90,7 @@ const historyLogEl = document.querySelector("#history-log");
 const downloadShortcutEls = Array.from(document.querySelectorAll("[data-download-shortcut]"));
 const openMusicFolderEls = Array.from(document.querySelectorAll("[data-open-music-folder]"));
 const tagMusicEls = Array.from(document.querySelectorAll("[data-tag-music]"));
+const openAnalysisEls = Array.from(document.querySelectorAll("[data-open-analysis]"));
 
 let currentConfig = {};
 let fieldTypes = new Map();
@@ -80,6 +98,13 @@ let activeConversionTaskId = null;
 let conversionPollTimer = null;
 let activeDownloadTaskId = null;
 let downloadPollTimer = null;
+let activeAnalysisTaskId = null;
+let analysisPollTimer = null;
+let analysisTaskRunning = false;
+let analysisResults = [];
+let selectedAnalysisIndex = -1;
+let analysisLogs = [];
+let loadedAnalysisReportDate = "";
 let sheetRows = [];
 let activeImportId = null;
 let selectedSheetRows = new Set();
@@ -516,6 +541,17 @@ function stopDownloadPolling() {
   downloadPollTimer = null;
 }
 
+function startAnalysisPolling() {
+  if (analysisPollTimer) return;
+  analysisPollTimer = window.setInterval(loadLatestAnalysis, 1500);
+}
+
+function stopAnalysisPolling() {
+  if (!analysisPollTimer) return;
+  window.clearInterval(analysisPollTimer);
+  analysisPollTimer = null;
+}
+
 async function loadLatestConversionTask() {
   const response = await fetch("/api/conversion/latest");
   const data = await response.json();
@@ -529,6 +565,14 @@ async function loadLatestDownloadTask() {
   const data = await response.json();
   if (response.ok && data.ok) {
     renderDownloadTask(data.task);
+  }
+}
+
+async function loadLatestAnalysis() {
+  const response = await fetch("/api/analysis/latest");
+  const data = await response.json();
+  if (response.ok && data.ok) {
+    renderAnalysisTask(data.task, data.report);
   }
 }
 
@@ -547,6 +591,7 @@ async function loadConfig() {
     setSaveStatus("");
     await loadLatestConversionTask();
     await loadLatestDownloadTask();
+    await loadLatestAnalysis();
   } catch (error) {
     healthEl.textContent = "Erro";
     healthEl.className = "status-pill error";
@@ -606,6 +651,103 @@ async function cancelConversion() {
   await loadLatestConversionTask();
 }
 
+function openAnalysisSection() {
+  document.querySelector("#analysis").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function startLibraryAnalysis() {
+  startLibraryAnalysisEl.disabled = true;
+  analysisMessageEl.textContent = "Preparando análise completa da biblioteca...";
+  analysisMessageEl.className = "save-status";
+  openAnalysisSection();
+  try {
+    const response = await fetch("/api/analysis/start-library", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "Falha ao iniciar a análise da biblioteca.");
+    }
+    analysisMessageEl.textContent = "Análise iniciada. Os arquivos originais não serão modificados.";
+    analysisMessageEl.className = "save-status ok";
+    renderAnalysisTask(data.task);
+  } catch (error) {
+    analysisMessageEl.textContent = friendlyError(error);
+    analysisMessageEl.className = "save-status error";
+    startLibraryAnalysisEl.disabled = false;
+  }
+}
+
+async function cancelAnalysis() {
+  if (!activeAnalysisTaskId) return;
+  cancelAnalysisEl.disabled = true;
+  await fetch(`/api/tasks/${activeAnalysisTaskId}/cancel`, { method: "POST" });
+  await loadLatestAnalysis();
+}
+
+async function analyzeAudioFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  openAnalysisSection();
+  if (analysisTaskRunning) {
+    analysisMessageEl.textContent = "Aguarde a análise da biblioteca terminar ou clique em Parar.";
+    analysisMessageEl.className = "save-status error";
+    return;
+  }
+  startLibraryAnalysisEl.disabled = true;
+  analysisFileEl.disabled = true;
+  analysisDropZoneEl.classList.add("busy");
+  analysisStatusEl.textContent = "Analisando arquivos";
+  analysisProgressEl.textContent = `0 / ${files.length}`;
+  let completed = 0;
+  let failures = 0;
+  try {
+    for (const file of files) {
+      if (file.size > 100 * 1024 * 1024) {
+        failures += 1;
+        analysisProgressEl.textContent = `${completed + failures} / ${files.length}`;
+        analysisMessageEl.textContent = `${file.name}: excede o limite de 100 MB.`;
+        analysisMessageEl.className = "save-status error";
+        continue;
+      }
+      analysisMessageEl.textContent = `Analisando ${file.name} (${completed + failures + 1}/${files.length})...`;
+      analysisMessageEl.className = "save-status";
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+      try {
+        const response = await fetch("/api/analysis/upload", { method: "POST", body: formData });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || `Falha ao analisar ${file.name}.`);
+        }
+        analysisResults.unshift(data.result);
+        selectedAnalysisIndex = 0;
+        completed += 1;
+        analysisProgressEl.textContent = `${completed + failures} / ${files.length}`;
+        renderAnalysisResults();
+      } catch (error) {
+        failures += 1;
+        analysisProgressEl.textContent = `${completed + failures} / ${files.length}`;
+        analysisMessageEl.textContent = friendlyError(error);
+        analysisMessageEl.className = "save-status error";
+      }
+    }
+    if (!failures) {
+      analysisStatusEl.textContent = "Concluída";
+      analysisMessageEl.textContent = `${completed} arquivo(s) analisado(s). Nenhum original foi alterado.`;
+      analysisMessageEl.className = "save-status ok";
+    } else if (completed) {
+      analysisStatusEl.textContent = "Concluída com falhas";
+      analysisMessageEl.textContent = `${completed} arquivo(s) analisado(s) e ${failures} com falha.`;
+      analysisMessageEl.className = "save-status error";
+    }
+  } finally {
+    if (!completed && failures) analysisStatusEl.textContent = "Falhou";
+    startLibraryAnalysisEl.disabled = false;
+    analysisFileEl.disabled = false;
+    analysisFileEl.value = "";
+    analysisDropZoneEl.classList.remove("busy", "drag-active");
+  }
+}
+
 function collectDownloadOptions() {
   return {
     reescan_list: downloadReescanEl.checked,
@@ -643,6 +785,226 @@ async function openMusicFolder() {
   } finally {
     openMusicFolderEls.forEach((button) => { button.disabled = false; });
   }
+}
+
+function analysisMetric(value, suffix = "") {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return `${number.toFixed(1)}${suffix}`;
+}
+
+function renderAnalysisSummary() {
+  const counts = {
+    total: analysisResults.length,
+    good: analysisResults.filter((item) => item.rating === "good").length,
+    medium: analysisResults.filter((item) => item.rating === "medium").length,
+    bad: analysisResults.filter((item) => item.rating === "bad").length,
+    errors: analysisResults.filter((item) => item.error).length,
+  };
+  const entries = [
+    ["Total", counts.total],
+    ["Boas", counts.good],
+    ["Médias", counts.medium],
+    ["Ruins", counts.bad],
+    ["Falhas", counts.errors],
+  ];
+  analysisSummaryEl.textContent = "";
+  entries.forEach(([labelText, value]) => {
+    const metric = document.createElement("div");
+    metric.className = "metric";
+    const label = document.createElement("span");
+    const strong = document.createElement("strong");
+    label.textContent = labelText;
+    strong.textContent = String(value);
+    metric.append(label, strong);
+    analysisSummaryEl.appendChild(metric);
+  });
+}
+
+function addAnalysisDetailCard(titleText, bodyText, kind = "") {
+  const card = document.createElement("div");
+  card.className = `analysis-detail-card ${kind}`.trim();
+  const title = document.createElement("strong");
+  const body = document.createElement("span");
+  title.textContent = titleText;
+  body.textContent = bodyText;
+  card.append(title, body);
+  analysisDetailEl.appendChild(card);
+}
+
+function drawAnalysisChart(item) {
+  const context = analysisChartEl.getContext("2d");
+  const pixelRatio = window.devicePixelRatio || 1;
+  const cssWidth = Math.max(320, analysisChartEl.clientWidth || 960);
+  const cssHeight = 240;
+  analysisChartEl.width = Math.round(cssWidth * pixelRatio);
+  analysisChartEl.height = Math.round(cssHeight * pixelRatio);
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.fillStyle = "#091018";
+  context.fillRect(0, 0, cssWidth, cssHeight);
+
+  const padding = { left: 48, right: 16, top: 14, bottom: 28 };
+  const plotWidth = cssWidth - padding.left - padding.right;
+  const plotHeight = cssHeight - padding.top - padding.bottom;
+  const levels = [-6, -12, -18, -24, -36, -48, -60];
+  context.font = "11px system-ui";
+  context.lineWidth = 1;
+  levels.forEach((level) => {
+    const y = padding.top + ((0 - level) / 60) * plotHeight;
+    context.strokeStyle = "rgba(166, 195, 210, 0.16)";
+    context.beginPath();
+    context.moveTo(padding.left, y);
+    context.lineTo(cssWidth - padding.right, y);
+    context.stroke();
+    context.fillStyle = "#86a0ae";
+    context.fillText(`${level}`, 10, y + 4);
+  });
+  context.fillStyle = "#86a0ae";
+  context.fillText("LUFS", 8, 12);
+
+  const timeline = Array.isArray(item?.timeline) ? item.timeline : [];
+  if (!timeline.length) {
+    context.fillStyle = "#9fb4c2";
+    context.textAlign = "center";
+    context.font = "14px system-ui";
+    context.fillText("Sem dados temporais para este arquivo", cssWidth / 2, cssHeight / 2);
+    context.textAlign = "left";
+    return;
+  }
+
+  const maxSeconds = Math.max(1, Number(timeline[timeline.length - 1].seconds) || 1);
+  const gradient = context.createLinearGradient(padding.left, 0, cssWidth - padding.right, 0);
+  gradient.addColorStop(0, "#16c7b0");
+  gradient.addColorStop(0.55, "#4da9ff");
+  gradient.addColorStop(1, item.rating === "bad" ? "#ff5267" : item.rating === "medium" ? "#ffb22e" : "#9b6cff");
+  context.strokeStyle = gradient;
+  context.lineWidth = 2.5;
+  context.beginPath();
+  timeline.forEach((point, index) => {
+    const seconds = Math.max(0, Number(point.seconds) || 0);
+    const loudness = Math.max(-60, Math.min(0, Number(point.lufs) || -60));
+    const x = padding.left + (seconds / maxSeconds) * plotWidth;
+    const y = padding.top + ((0 - loudness) / 60) * plotHeight;
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  });
+  context.stroke();
+  context.fillStyle = "#86a0ae";
+  context.fillText("0:00", padding.left, cssHeight - 8);
+  const minutes = Math.floor(maxSeconds / 60);
+  const seconds = String(Math.round(maxSeconds % 60)).padStart(2, "0");
+  const durationLabel = `${minutes}:${seconds}`;
+  const labelWidth = context.measureText(durationLabel).width;
+  context.fillText(durationLabel, cssWidth - padding.right - labelWidth, cssHeight - 8);
+}
+
+function selectAnalysisResult(index) {
+  const item = analysisResults[index];
+  if (!item) return;
+  selectedAnalysisIndex = index;
+  analysisResultsEl.querySelectorAll("tr[data-analysis-index]").forEach((row) => {
+    row.classList.toggle("selected", Number(row.dataset.analysisIndex) === index);
+  });
+  analysisChartTitleEl.textContent = item.file || "Música analisada";
+  analysisChartSubtitleEl.textContent = [
+    `Integrada ${analysisMetric(item.integrated_lufs, " LUFS")}`,
+    `Pico ${analysisMetric(item.true_peak_dbtp, " dBTP")}`,
+    `Faixa ${analysisMetric(item.loudness_range_lu, " LU")}`,
+  ].join(" · ");
+  analysisChartRatingEl.textContent = item.rating_label || "Sem nota";
+  analysisChartRatingEl.className = `quality-badge ${item.rating || ""}`.trim();
+  drawAnalysisChart(item);
+
+  analysisDetailEl.textContent = "";
+  (item.reasons || []).forEach((reason) => addAnalysisDetailCard("Diagnóstico", reason, item.rating === "bad" ? "error" : item.rating === "medium" ? "warning" : ""));
+  (item.recommendations || []).forEach((recommendation) => addAnalysisDetailCard("Sugestão", recommendation, "warning"));
+  if (item.error) addAnalysisDetailCard("Falha na leitura", item.error, "error");
+}
+
+function renderAnalysisResults() {
+  analysisResultsEl.textContent = "";
+  renderAnalysisSummary();
+  if (!analysisResults.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 8;
+    cell.textContent = "Analise a biblioteca ou arraste uma música para começar.";
+    row.appendChild(cell);
+    analysisResultsEl.appendChild(row);
+    return;
+  }
+
+  analysisResults.forEach((item, index) => {
+    const row = document.createElement("tr");
+    row.dataset.analysisIndex = String(index);
+    const ratingCell = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = `quality-badge ${item.rating || ""}`.trim();
+    badge.textContent = item.rating_label || "Sem nota";
+    ratingCell.appendChild(badge);
+    row.appendChild(ratingCell);
+
+    const fileCell = document.createElement("td");
+    const fileButton = document.createElement("button");
+    fileButton.type = "button";
+    fileButton.className = "analysis-file-button";
+    fileButton.textContent = item.file || "arquivo";
+    fileButton.addEventListener("click", () => selectAnalysisResult(index));
+    fileCell.appendChild(fileButton);
+    row.appendChild(fileCell);
+    appendTextCell(row, analysisMetric(item.integrated_lufs));
+    appendTextCell(row, analysisMetric(item.true_peak_dbtp));
+    appendTextCell(row, analysisMetric(item.loudness_range_lu));
+    appendTextCell(row, `${item.codec || "?"} / ${item.sample_rate_hz ? `${Math.round(item.sample_rate_hz / 100) / 10} kHz` : "?"}`);
+    appendTextCell(row, item.bit_rate_bps ? `${Math.round(item.bit_rate_bps / 1000)} kbps` : item.codec || "—");
+    appendTextCell(row, Number.isFinite(Number(item.score)) ? `${item.score}/100` : "—");
+    row.addEventListener("click", (event) => {
+      if (event.target !== fileButton) selectAnalysisResult(index);
+    });
+    analysisResultsEl.appendChild(row);
+  });
+  selectAnalysisResult(Math.min(Math.max(selectedAnalysisIndex, 0), analysisResults.length - 1));
+}
+
+function applyAnalysisReport(report) {
+  if (!report || !Array.isArray(report.items)) return;
+  const generatedAt = String(report.generated_at || "");
+  if (generatedAt && generatedAt === loadedAnalysisReportDate) return;
+  loadedAnalysisReportDate = generatedAt;
+  analysisGeneratedEl.textContent = valueText(report.generated_at);
+  analysisResults = report.items;
+  selectedAnalysisIndex = analysisResults.length ? 0 : -1;
+  renderAnalysisResults();
+}
+
+function renderAnalysisTask(task, report = null) {
+  applyAnalysisReport(report);
+  if (!task) {
+    activeAnalysisTaskId = null;
+    analysisTaskRunning = false;
+    analysisStatusEl.textContent = analysisResults.length ? "Relatório carregado" : "Sem análise";
+    analysisProgressEl.textContent = "0 / 0";
+    startLibraryAnalysisEl.disabled = false;
+    cancelAnalysisEl.disabled = true;
+    analysisFileEl.disabled = false;
+    analysisDropZoneEl.classList.remove("busy");
+    return;
+  }
+
+  activeAnalysisTaskId = task.id;
+  analysisStatusEl.textContent = task.status;
+  const progress = task.progress || {};
+  analysisProgressEl.textContent = `${progress.processed || 0} / ${progress.total || 0}`;
+  analysisLogs = task.logs || [];
+  renderTaskLog(analysisLogEl, analysisLogs, analysisLogFilterEl.value);
+  const running = ["pending", "running", "canceling"].includes(task.status);
+  analysisTaskRunning = running;
+  startLibraryAnalysisEl.disabled = running;
+  cancelAnalysisEl.disabled = !running;
+  analysisFileEl.disabled = running;
+  analysisDropZoneEl.classList.toggle("busy", running);
+  if (running) startAnalysisPolling();
+  else stopAnalysisPolling();
 }
 
 async function startTagMusic() {
@@ -1231,6 +1593,30 @@ reloadButtonEl.addEventListener("click", loadConfig);
 saveButtonEl.addEventListener("click", saveConfig);
 startConversionEl.addEventListener("click", startConversion);
 cancelConversionEl.addEventListener("click", cancelConversion);
+startLibraryAnalysisEl.addEventListener("click", startLibraryAnalysis);
+cancelAnalysisEl.addEventListener("click", cancelAnalysis);
+analysisFileEl.addEventListener("change", () => analyzeAudioFiles(analysisFileEl.files));
+analysisDropZoneEl.addEventListener("dragenter", (event) => {
+  event.preventDefault();
+  analysisDropZoneEl.classList.add("drag-active");
+});
+analysisDropZoneEl.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  analysisDropZoneEl.classList.add("drag-active");
+});
+analysisDropZoneEl.addEventListener("dragleave", () => analysisDropZoneEl.classList.remove("drag-active"));
+analysisDropZoneEl.addEventListener("drop", (event) => {
+  event.preventDefault();
+  analysisDropZoneEl.classList.remove("drag-active");
+  analyzeAudioFiles(event.dataTransfer?.files);
+});
+analysisDropZoneEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    analysisFileEl.click();
+  }
+});
 startDownloadEl.addEventListener("click", startDownload);
 cancelDownloadEl.addEventListener("click", cancelDownload);
 testSpotifyLinkEl.addEventListener("click", testSpotifyLink);
@@ -1282,6 +1668,7 @@ historySearchEl.addEventListener("input", renderHistory);
 historyFileFilterEl.addEventListener("change", renderHistory);
 conversionLogFilterEl.addEventListener("input", () => renderTaskLog(conversionLogEl, conversionLogs, conversionLogFilterEl.value));
 downloadLogFilterEl.addEventListener("input", () => renderTaskLog(downloadLogEl, downloadLogs, downloadLogFilterEl.value));
+analysisLogFilterEl.addEventListener("input", () => renderTaskLog(analysisLogEl, analysisLogs, analysisLogFilterEl.value));
 downloadShortcutEls.forEach((button) => {
   button.addEventListener("click", () => openDownloadShortcut(button.dataset.downloadShortcut));
 });
@@ -1291,8 +1678,16 @@ openMusicFolderEls.forEach((button) => {
 tagMusicEls.forEach((button) => {
   button.addEventListener("click", startTagMusic);
 });
+openAnalysisEls.forEach((button) => {
+  button.addEventListener("click", openAnalysisSection);
+});
+window.addEventListener("resize", () => {
+  drawAnalysisChart(analysisResults[selectedAnalysisIndex]);
+});
 
 updateDownloadSourcePanels();
+renderAnalysisResults();
+drawAnalysisChart(null);
 loadConfig();
 loadTasks();
 loadEnvironment();
