@@ -21,9 +21,9 @@ O IMD roda no próprio computador e abre uma interface em `http://127.0.0.1:8765
 
 ### Principais recursos
 
-- atalhos para **Download Spotify**, **Download YouTube** e **Pasta de Músicas**;
+- atalhos para **Download Spotify**, **Download YouTube**, **Tagear Músicas** e **Pasta de Músicas**;
 - importação de Google Sheets, CSV, TXT e XLSX;
-- pré-visualização e seleção das faixas antes do download;
+- pré-visualização e seleção das faixas antes do download, incluindo todas as linhas, linhas filtradas ou números e intervalos específicos;
 - acompanhamento de tarefas e logs em tempo real;
 - cancelamento de downloads e encerramento dos subprocessos relacionados;
 - reescaneamento de playlists sem baixar novamente o que já existe;
@@ -76,6 +76,8 @@ Não é necessário desativar o Gatekeeper globalmente. O aplicativo inclui Pyth
 5. Inicie o download e acompanhe o log na tela.
 
 Os arquivos são salvos em `paths.music_dir`. Histórico, cache e falhas ficam em `paths.state_dir`.
+
+Na tela **Planilha**, use `Selecionar todas`, `Selecionar filtradas` ou informe combinações como `1, 3-5, 9`. Na tela **Download**, o campo **Linhas da planilha** aceita a mesma sintaxe; deixe vazio ou use `todos` para processar a lista inteira. O atalho **Tagear Músicas** preenche os metadados ausentes da biblioteca configurada sem iniciar novos downloads.
 
 ## Entradas aceitas
 

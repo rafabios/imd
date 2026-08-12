@@ -23,6 +23,12 @@ const sheetStatusEl = document.querySelector("#sheet-status");
 const sheetIssuesEl = document.querySelector("#sheet-issues");
 const sheetSummaryEl = document.querySelector("#sheet-summary");
 const sheetRowsEl = document.querySelector("#sheet-rows");
+const sheetRowSelectionEl = document.querySelector("#sheet-row-selection");
+const applySheetSelectionEl = document.querySelector("#apply-sheet-selection");
+const selectVisibleSheetEl = document.querySelector("#select-visible-sheet");
+const selectAllSheetEl = document.querySelector("#select-all-sheet");
+const clearSheetSelectionEl = document.querySelector("#clear-sheet-selection");
+const sheetSelectionHelpEl = document.querySelector("#sheet-selection-help");
 const startDownloadEl = document.querySelector("#start-download");
 const cancelDownloadEl = document.querySelector("#cancel-download");
 const downloadSourceEl = document.querySelector("#download-source");
@@ -66,6 +72,7 @@ const historyFileFilterEl = document.querySelector("#history-file-filter");
 const historyLogEl = document.querySelector("#history-log");
 const downloadShortcutEls = Array.from(document.querySelectorAll("[data-download-shortcut]"));
 const openMusicFolderEls = Array.from(document.querySelectorAll("[data-open-music-folder]"));
+const tagMusicEls = Array.from(document.querySelectorAll("[data-tag-music]"));
 
 let currentConfig = {};
 let fieldTypes = new Map();
@@ -447,6 +454,7 @@ function renderDownloadTask(task) {
     downloadLogEl.textContent = "Nenhum download iniciado nesta sessao.";
     startDownloadEl.disabled = false;
     cancelDownloadEl.disabled = true;
+    tagMusicEls.forEach((button) => { button.disabled = false; });
     return;
   }
 
@@ -461,6 +469,7 @@ function renderDownloadTask(task) {
   const running = ["pending", "running", "canceling"].includes(task.status);
   startDownloadEl.disabled = running;
   cancelDownloadEl.disabled = !running;
+  tagMusicEls.forEach((button) => { button.disabled = running; });
 
   if (running) {
     startDownloadPolling();
@@ -602,7 +611,7 @@ function collectDownloadOptions() {
     reescan_list: downloadReescanEl.checked,
     dry_run: downloadDryRunEl.checked,
     tagmusic: downloadTagmusicEl.checked,
-    only_row: downloadOnlyRowEl.value.trim() || null,
+    row_selection: downloadOnlyRowEl.value.trim() || null,
     only_url: null,
   };
 }
@@ -633,6 +642,27 @@ async function openMusicFolder() {
     healthEl.className = "status-pill error";
   } finally {
     openMusicFolderEls.forEach((button) => { button.disabled = false; });
+  }
+}
+
+async function startTagMusic() {
+  tagMusicEls.forEach((button) => { button.disabled = true; });
+  downloadLogEl.textContent = "Iniciando tageamento da pasta de musicas...";
+  document.querySelector("#download").scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const response = await fetch("/api/tag-music/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: false }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "Falha ao iniciar o tageamento");
+    }
+    renderDownloadTask(data.task);
+  } catch (error) {
+    downloadLogEl.textContent = friendlyError(error);
+    tagMusicEls.forEach((button) => { button.disabled = false; });
   }
 }
 
@@ -795,6 +825,67 @@ function rowMatchesFilters(row) {
     .includes(search);
 }
 
+function parseSheetRowSelection(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) throw new Error("Digite linhas como 1-5, 8, 12-15 ou todos.");
+  if (["*", "all", "todas", "todos"].includes(text)) {
+    return sheetRows.map((row) => row.row_number);
+  }
+
+  const available = new Set(sheetRows.map((row) => row.row_number));
+  const selected = new Set();
+  const tokens = text.split(/[,;\s]+/).filter(Boolean);
+  tokens.forEach((token) => {
+    const match = token.match(/^(\d+)(?:-(\d+))?$/);
+    if (!match) throw new Error(`Selecao invalida: ${token}. Use 2,5,8-12 ou todos.`);
+    const start = Number(match[1]);
+    const end = Number(match[2] || match[1]);
+    if (start < 1 || end < 1) throw new Error("Os numeros das linhas devem comecar em 1.");
+    if (end < start) throw new Error(`Intervalo invertido: ${start}-${end}.`);
+    if (end - start + 1 > 10000) throw new Error("O intervalo pode ter no maximo 10000 linhas.");
+    for (let rowNumber = start; rowNumber <= end; rowNumber += 1) {
+      if (!available.has(rowNumber)) throw new Error(`A linha ${rowNumber} nao esta entre as linhas carregadas.`);
+      selected.add(rowNumber);
+    }
+  });
+  return Array.from(selected).sort((left, right) => left - right);
+}
+
+function setSheetSelection(rowNumbers, message) {
+  selectedSheetRows = new Set(rowNumbers);
+  renderSheetRows();
+  sheetStatusEl.textContent = message;
+  sheetStatusEl.className = "save-status ok";
+}
+
+function applySheetSelection() {
+  try {
+    const rowNumbers = parseSheetRowSelection(sheetRowSelectionEl.value);
+    setSheetSelection(rowNumbers, `${rowNumbers.length} linhas selecionadas pelos numeros informados.`);
+  } catch (error) {
+    sheetStatusEl.textContent = friendlyError(error);
+    sheetStatusEl.className = "save-status error";
+  }
+}
+
+function selectVisibleSheetRows() {
+  const rowNumbers = sheetRows.filter(rowMatchesFilters).map((row) => row.row_number);
+  setSheetSelection(rowNumbers, `${rowNumbers.length} linhas filtradas selecionadas.`);
+}
+
+function selectAllSheetRows() {
+  const rowNumbers = sheetRows.map((row) => row.row_number);
+  setSheetSelection(rowNumbers, `${rowNumbers.length} linhas carregadas selecionadas.`);
+}
+
+function clearSheetSelection() {
+  selectedSheetRows = new Set();
+  sheetRowSelectionEl.value = "";
+  renderSheetRows();
+  sheetStatusEl.textContent = "Selecao de linhas limpa.";
+  sheetStatusEl.className = "save-status";
+}
+
 function renderSheetRows() {
   const visibleRows = sheetRows.filter(rowMatchesFilters);
   if (!visibleRows.length) {
@@ -881,6 +972,8 @@ async function loadSheetPreview() {
     }
     sheetRows = data.rows;
     selectedSheetRows = new Set();
+    [sheetRowSelectionEl, applySheetSelectionEl, selectVisibleSheetEl, selectAllSheetEl, clearSheetSelectionEl]
+      .forEach((control) => { control.disabled = false; });
     validateSheetEl.disabled = false;
     renderSheetSummary(data.counts);
     renderSheetRows();
@@ -934,6 +1027,9 @@ async function validateSheetRows() {
 
 function updateSelectedSheetButton() {
   downloadSelectedSheetEl.disabled = selectedSheetRows.size === 0;
+  sheetSelectionHelpEl.textContent = sheetRows.length
+    ? `${selectedSheetRows.size} de ${sheetRows.length} linhas carregadas selecionadas.`
+    : "Carregue a planilha para selecionar linhas.";
 }
 
 function sheetRowToInput(row) {
@@ -1144,6 +1240,16 @@ validateSheetEl.addEventListener("click", validateSheetRows);
 sheetSearchEl.addEventListener("input", renderSheetRows);
 sheetTypeFilterEl.addEventListener("change", renderSheetRows);
 downloadSelectedSheetEl.addEventListener("click", startSelectedSheetDownload);
+applySheetSelectionEl.addEventListener("click", applySheetSelection);
+selectVisibleSheetEl.addEventListener("click", selectVisibleSheetRows);
+selectAllSheetEl.addEventListener("click", selectAllSheetRows);
+clearSheetSelectionEl.addEventListener("click", clearSheetSelection);
+sheetRowSelectionEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    applySheetSelection();
+  }
+});
 sheetRowsEl.addEventListener("change", (event) => {
   const rowNumber = Number(event.target.dataset.sheetSelect || 0);
   if (!rowNumber) return;
@@ -1181,6 +1287,9 @@ downloadShortcutEls.forEach((button) => {
 });
 openMusicFolderEls.forEach((button) => {
   button.addEventListener("click", openMusicFolder);
+});
+tagMusicEls.forEach((button) => {
+  button.addEventListener("click", startTagMusic);
 });
 
 updateDownloadSourcePanels();

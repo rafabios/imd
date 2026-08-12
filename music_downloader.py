@@ -24,6 +24,8 @@ import yt_dlp
 import certifi
 from tqdm import tqdm
 
+from row_selection import parse_row_selection
+
 try:
     import librosa
     import numpy as np
@@ -1352,6 +1354,7 @@ def main():
     parser.add_argument("--reescan-list", dest="reescan_list", action=argparse.BooleanOptionalAction, default=None, help="Para playlists/artistas do Spotify, verifica a pasta e baixa so faixas novas")
     parser.add_argument("--dry-run", dest="dry_run", action=argparse.BooleanOptionalAction, default=None, help="Mostra o que faria, mas nao baixa musicas nem grava historico")
     parser.add_argument("--only-row", type=int, default=None, help="Processa apenas uma linha da planilha (1-based)")
+    parser.add_argument("--row-selection", default=None, help="Processa linhas e intervalos: 2,5,8-12 ou todos")
     parser.add_argument("--only-url", default=None, help="Processa apenas uma URL Spotify informada")
     parser.add_argument("--input-file", default=None, help="CSV local para processar no lugar da planilha do config")
     parser.add_argument("--conversion-only", dest="conversion_only", action=argparse.BooleanOptionalAction, default=None, help="Executa apenas a conversao de arquivos de audio")
@@ -1361,6 +1364,7 @@ def main():
     tagmusic = config_bool("execution.tagmusic", False) if args.tagmusic is None else args.tagmusic
     tag_force = config_bool("execution.tag_force", False) if args.tag_force is None else args.tag_force
     only_row = args.only_row if args.only_row is not None else config_value("execution.only_row")
+    row_selection = str(args.row_selection or "").strip()
     only_url = args.only_url if args.only_url is not None else config_str("execution.only_url", "")
     input_file = args.input_file
     conversion_only = CONVERSION_ONLY if args.conversion_only is None else args.conversion_only
@@ -1394,6 +1398,10 @@ def main():
     df = pd.read_csv(input_file or GOOGLE_SHEET_CSV)
     if only_url:
         df = pd.DataFrame([{"Artista": only_url, "Musica": "", "(opcional) Tag/Genero": ""}])
+    elif row_selection:
+        selected_rows = parse_row_selection(row_selection, total_rows=len(df))
+        if selected_rows is not None:
+            df = df.iloc[[row_number - 1 for row_number in selected_rows]]
     elif only_row:
         row_number = int(only_row)
         if row_number < 1 or row_number > len(df):

@@ -192,6 +192,53 @@ def test_start_download_task_builds_expected_command(monkeypatch):
     assert "--no-tagmusic" in captured["command"]
 
 
+def test_start_download_task_accepts_row_ranges(monkeypatch):
+    captured = {}
+
+    def fake_start_background_task(kind, command):
+        captured["command"] = command
+        return app_server.BackgroundTask(id="download-ranges", kind=kind, command=command)
+
+    monkeypatch.setattr(app_server, "start_background_task", fake_start_background_task)
+
+    result = app_server.start_download_task({"row_selection": "2,5,8-12"})
+
+    assert result["ok"] is True
+    assert captured["command"][captured["command"].index("--row-selection") + 1] == "2,5,8-12"
+    assert "--only-row" not in captured["command"]
+
+
+def test_start_download_task_rejects_invalid_row_ranges(monkeypatch):
+    monkeypatch.setattr(
+        app_server,
+        "start_background_task",
+        lambda *_: pytest.fail("Tarefa nao deve iniciar com selecao invalida."),
+    )
+
+    result = app_server.start_download_task({"row_selection": "8-3"})
+
+    assert result["ok"] is False
+    assert "invertido" in result["error"]
+
+
+def test_start_tag_music_task_builds_standalone_tag_command(monkeypatch):
+    captured = {}
+
+    def fake_start_background_task(kind, command):
+        captured["kind"] = kind
+        captured["command"] = command
+        return app_server.BackgroundTask(id="tag-task", kind=kind, command=command)
+
+    monkeypatch.setattr(app_server, "start_background_task", fake_start_background_task)
+
+    result = app_server.start_tag_music_task(force=False)
+
+    assert result["ok"] is True
+    assert captured["kind"] == "download"
+    assert "--tagmusic" in captured["command"]
+    assert "--no-tag-force" in captured["command"]
+
+
 def test_start_download_task_rejects_parallel_download(monkeypatch):
     task = app_server.BackgroundTask(
         id="running-download",
@@ -671,6 +718,43 @@ def test_http_spotify_check_endpoint(monkeypatch):
     assert payload["ok"] is True
     assert payload["name"] == "This Is Test"
     assert payload["count"] == 1
+
+
+def test_http_tag_music_endpoint_starts_safe_fill_missing_mode(monkeypatch):
+    calls = []
+
+    def fake_start_tag_music_task(force=False):
+        calls.append(force)
+        return {
+            "ok": True,
+            "task": app_server.BackgroundTask(
+                id="tag-http",
+                kind="download",
+                command=["python", "--tagmusic", "--no-tag-force"],
+            ).snapshot(),
+        }
+
+    monkeypatch.setattr(app_server, "start_tag_music_task", fake_start_tag_music_task)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app_server.AppHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/api/tag-music/start"
+        request = urllib.request.Request(
+            url,
+            data=json.dumps({"force": False}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["ok"] is True
+    assert payload["task"]["id"] == "tag-http"
+    assert calls == [False]
 
 
 def test_http_import_preview_endpoint():

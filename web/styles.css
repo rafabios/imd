@@ -123,6 +123,11 @@ body {
   box-shadow: 0 12px 26px rgba(165, 22, 42, 0.24);
 }
 
+.tag-action {
+  background: linear-gradient(135deg, #8b5cf6, #5b21b6);
+  box-shadow: 0 12px 26px rgba(91, 33, 182, 0.28);
+}
+
 .folder-action {
   background: linear-gradient(135deg, #f0a928, #c46c12);
   box-shadow: 0 12px 26px rgba(196, 108, 18, 0.24);
@@ -156,6 +161,7 @@ body {
 
 .content {
   width: min(1240px, 100%);
+  min-width: 0;
   padding: 30px 34px 42px;
 }
 
@@ -763,12 +769,63 @@ button:disabled {
   font: inherit;
 }
 
+.sheet-selection-controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px 14px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f9fbfc;
+}
+
+.sheet-selection-input {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.sheet-selection-input input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+}
+
+.sheet-selection-buttons {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sheet-selection-buttons button {
+  min-height: 42px;
+}
+
+.sheet-selection-controls > small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
 .compact-metrics {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 14px;
 }
 
 .table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -911,9 +968,25 @@ button:disabled {
   .sheet-toolbar,
   .download-source-grid,
   .manual-source-panel,
-  .download-options,
-  .env-grid {
-    grid-template-columns: 1fr;
+    .download-options,
+    .sheet-selection-controls,
+    .env-grid {
+      grid-template-columns: 1fr;
+    }
+
+  .sheet-selection-controls > small {
+    grid-column: auto;
+  }
+
+  .sheet-selection-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sheet-selection-buttons button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
   }
 
   .wide-option {
@@ -935,5 +1008,11 @@ button:disabled {
 
   .button-row button {
     flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .sheet-selection-buttons {
+    grid-template-columns: 1fr;
   }
 }

@@ -29,6 +29,7 @@ import pandas as pd
 import requests
 
 from imd_paths import frozen_app_data_dir
+from row_selection import parse_row_selection
 
 
 def app_root_dir() -> Path:
@@ -471,9 +472,17 @@ def start_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
     else:
         command.append("--no-dry-run")
 
-    only_row = options.get("only_row")
-    if only_row not in (None, ""):
-        command += ["--only-row", str(int(only_row))]
+    row_selection = str(options.get("row_selection") or "").strip()
+    if row_selection:
+        try:
+            parse_row_selection(row_selection)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
+        command += ["--row-selection", row_selection]
+    else:
+        only_row = options.get("only_row")
+        if only_row not in (None, ""):
+            command += ["--only-row", str(int(only_row))]
 
     only_url = str(options.get("only_url") or "").strip()
     if only_url:
@@ -486,6 +495,16 @@ def start_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
         current = active_task("download")
         if current:
             return {"ok": False, "error": "Ja existe um download em andamento.", "task": current.snapshot()}
+        task = start_background_task("download", command)
+    return {"ok": True, "task": task.snapshot()}
+
+
+def start_tag_music_task(force: bool = False) -> Dict[str, Any]:
+    command = worker_command("--tagmusic", "--tag-force" if force else "--no-tag-force")
+    with TASK_LOCK:
+        current = active_task("download")
+        if current:
+            return {"ok": False, "error": "Ja existe um download ou tageamento em andamento.", "task": current.snapshot()}
         task = start_background_task("download", command)
     return {"ok": True, "task": task.snapshot()}
 
@@ -917,6 +936,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 payload = self.read_json_body()
                 result = spotify_check_payload(str(payload.get("url") or ""))
                 self.send_json(result, status=200 if result.get("ok") else 400)
+            except Exception as e:
+                self.send_json({"ok": False, "error": format_error(e)}, status=500)
+            return
+        if parsed.path == "/api/tag-music/start":
+            try:
+                payload = self.read_json_body()
+                result = start_tag_music_task(bool(payload.get("force")))
+                self.send_json(result, status=200 if result.get("ok") else 409)
             except Exception as e:
                 self.send_json({"ok": False, "error": format_error(e)}, status=500)
             return

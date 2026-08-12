@@ -31,6 +31,22 @@ def test_web_rows_do_not_render_api_values_with_inner_html():
     assert "appendSpotifyCell" in source
 
 
+def test_web_exposes_tagging_shortcut_and_flexible_row_selection():
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+    styles = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
+
+    assert html.count("data-tag-music") == 2
+    assert 'id="sheet-row-selection"' in html
+    assert 'id="select-all-sheet"' in html
+    assert 'id="select-visible-sheet"' in html
+    assert 'id="download-only-row" type="text"' in html
+    assert "/api/tag-music/start" in script
+    assert "parseSheetRowSelection" in script
+    assert "row_selection: downloadOnlyRowEl.value.trim()" in script
+    assert ".tag-action" in styles
+
+
 def test_docker_entrypoint_exists():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 

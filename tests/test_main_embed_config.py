@@ -441,6 +441,39 @@ def test_main_processes_only_row_with_mocks(app, monkeypatch):
     assert calls == [("A2", "T2", "G2", False)]
 
 
+def test_main_processes_row_numbers_and_ranges_with_mocks(app, monkeypatch):
+    df = pd.DataFrame(
+        [
+            {"Artista": f"A{number}", "Musica": f"T{number}", "(opcional) Tag/Genero": f"G{number}"}
+            for number in range(1, 8)
+        ]
+    )
+    calls = []
+
+    def fake_run_youtube_track(artist, title, genero, hist, dry_run=False, **kwargs):
+        calls.append((artist, title, genero))
+        return "downloaded", f"C:/tmp/{artist} - {title}.mp3"
+
+    monkeypatch.setattr(app.pd, "read_csv", lambda _: df)
+    monkeypatch.setattr(app, "load_history", lambda: set())
+    monkeypatch.setattr(app, "save_baixados", lambda items: None)
+    monkeypatch.setattr(app, "save_history", lambda hist: None)
+    monkeypatch.setattr(app, "tag_downloaded_items", lambda items, only_fill_missing=True: None)
+    monkeypatch.setattr(app, "run_youtube_track", fake_run_youtube_track)
+    monkeypatch.setattr(app.shutil, "which", lambda name: "ffmpeg")
+    monkeypatch.setattr(app, "CONVERSION_ONLY", False)
+    monkeypatch.setattr(sys, "argv", ["music_downloader.py", "--row-selection", "2,4-5,7"])
+
+    app.main()
+
+    assert calls == [
+        ("A2", "T2", "G2"),
+        ("A4", "T4", "G4"),
+        ("A5", "T5", "G5"),
+        ("A7", "T7", "G7"),
+    ]
+
+
 def test_main_processes_only_url_with_mocks(app, monkeypatch):
     calls = []
 
