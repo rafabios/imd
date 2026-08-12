@@ -47,12 +47,17 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-macos.txt
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install --only-binary=numba,llvmlite -r requirements-macos.txt
           python -m pip install pyinstaller
+          python -m pip check
+          python -c 'import llvmlite, numba; assert llvmlite.__version__ == "0.43.0"; assert numba.__version__ == "0.60.0"; print("numba/llvmlite wheels OK")'
 
       - name: Install and locate FFmpeg
         shell: bash

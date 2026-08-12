@@ -1,0 +1,5 @@
+# Versoes com wheels CPython 3.12 para macOS Intel e Apple Silicon.
+# Evita compilar llvmlite/LLVM durante o GitHub Actions.
+-r requirements.txt
+numba==0.60.0
+llvmlite==0.43.0

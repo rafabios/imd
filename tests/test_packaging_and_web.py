@@ -62,6 +62,7 @@ def test_pages_loads_latest_release_version_safely():
 def test_macos_workflow_builds_both_architectures_without_developer_certificate():
     workflow = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
     spec = (ROOT / "packaging" / "IMD-macos.spec").read_text(encoding="utf-8")
+    requirements = (ROOT / "requirements-macos.txt").read_text(encoding="utf-8")
 
     assert "macos-15-intel" in workflow
     assert "macos-15" in workflow
@@ -74,6 +75,10 @@ def test_macos_workflow_builds_both_architectures_without_developer_certificate(
     assert "APPLE_CERTIFICATE" not in workflow
     assert "BUNDLE(" in spec
     assert 'codesign_identity=None' in spec
+    assert "--only-binary=numba,llvmlite -r requirements-macos.txt" in workflow
+    assert "python -m pip check" in workflow
+    assert "numba==0.60.0" in requirements
+    assert "llvmlite==0.43.0" in requirements
 
 
 def test_pages_offer_macos_downloads():
