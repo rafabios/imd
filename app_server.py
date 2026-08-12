@@ -496,8 +496,24 @@ def load_analysis_report() -> Dict[str, Any] | None:
     if not ANALYSIS_REPORT_FILE.is_file():
         return None
     try:
+        from audio_analysis import ANALYSIS_METHOD_VERSION, classify_audio, summarize_results
+
         data = json.loads(ANALYSIS_REPORT_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            return None
+        items = data.get("items")
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("error"):
+                    item.setdefault("strengths", [])
+                elif item.get("method_version") != ANALYSIS_METHOD_VERSION:
+                    item.update(classify_audio(item))
+                item["method_version"] = ANALYSIS_METHOD_VERSION
+            data["counts"] = summarize_results(item for item in items if isinstance(item, dict))
+            data["method_version"] = ANALYSIS_METHOD_VERSION
+        return data
     except Exception:
         return None
 

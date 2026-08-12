@@ -923,6 +923,11 @@ button:disabled {
   color: var(--text);
 }
 
+.analysis-detail-card.positive {
+  border-left-color: var(--accent);
+  background: #eefaf7;
+}
+
 .analysis-detail-card.warning {
   border-left-color: var(--gold);
   background: var(--surface-warm);

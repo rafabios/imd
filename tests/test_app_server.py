@@ -280,6 +280,42 @@ def test_start_music_analysis_task_builds_read_only_worker_command(monkeypatch, 
     assert "--analyze" not in captured["command"]
 
 
+def test_load_analysis_report_reclassifies_old_results(monkeypatch, tmp_path):
+    report = tmp_path / "library-report.json"
+    report.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-12T17:00:00",
+                "counts": {"total": 1, "good": 0, "medium": 0, "bad": 1, "errors": 0},
+                "items": [
+                    {
+                        "file": "track.mp3",
+                        "method_version": 1,
+                        "rating": "bad",
+                        "rating_label": "Ruim",
+                        "score": 60,
+                        "true_peak_dbtp": 3.0,
+                        "integrated_lufs": -8.0,
+                        "loudness_range_lu": 6.0,
+                        "sample_rate_hz": 44100,
+                        "bit_rate_bps": 320000,
+                        "codec": "mp3",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(app_server, "ANALYSIS_REPORT_FILE", report)
+
+    result = app_server.load_analysis_report()
+
+    assert result["method_version"] == 2
+    assert result["counts"] == {"total": 1, "good": 1, "medium": 0, "bad": 0, "errors": 0}
+    assert result["items"][0]["rating"] == "good"
+    assert result["items"][0]["method_version"] == 2
+
+
 def test_analysis_progress_is_extracted_from_worker_logs():
     task = app_server.BackgroundTask(id="analysis-progress", kind="analysis", command=["python"])
 

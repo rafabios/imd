@@ -82,6 +82,46 @@ def test_extremely_flat_dynamics_caps_rating_at_medium():
     assert any("dinamica muito baixa" in reason for reason in result["reasons"])
 
 
+@pytest.mark.parametrize(
+    ("bit_rate_bps", "integrated_lufs", "true_peak_dbtp", "loudness_range_lu", "expected_rating"),
+    [
+        (197000, -14.5, 0.0, 6.0, "good"),
+        (256000, -15.6, -0.1, 16.2, "good"),
+        (320000, -7.0, 5.4, 4.7, "good"),
+        (320000, -7.9, 7.3, 9.8, "medium"),
+    ],
+)
+def test_classification_matches_real_library_profiles(
+    bit_rate_bps,
+    integrated_lufs,
+    true_peak_dbtp,
+    loudness_range_lu,
+    expected_rating,
+):
+    result = audio_analysis.classify_audio(
+        healthy_metrics(
+            bit_rate_bps=bit_rate_bps,
+            integrated_lufs=integrated_lufs,
+            true_peak_dbtp=true_peak_dbtp,
+            loudness_range_lu=loudness_range_lu,
+        )
+    )
+
+    assert result["rating"] == expected_rating
+    assert any("Bitrate" in strength for strength in result["strengths"])
+    assert any("Loudness" in strength for strength in result["strengths"])
+    if true_peak_dbtp >= 0:
+        assert any("Pico real" in reason for reason in result["reasons"])
+
+
+def test_peak_warning_does_not_make_well_encoded_track_bad():
+    result = audio_analysis.classify_audio(healthy_metrics(true_peak_dbtp=3.0))
+
+    assert result["rating"] == "good"
+    assert result["score"] == 90
+    assert any("distorcao" in reason for reason in result["reasons"])
+
+
 def test_analyze_audio_file_combines_probe_loudness_and_classification(monkeypatch, tmp_path):
     source = tmp_path / "track.mp3"
     source.write_bytes(b"audio")

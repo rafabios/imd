@@ -29,7 +29,7 @@ O IMD roda no próprio computador e abre uma interface em `http://127.0.0.1:8765
 - reescaneamento de playlists sem baixar novamente o que já existe;
 - conversão em lote entre MP3, M4A, MP4, FLAC, WAV, OGG, OPUS e AAC;
 - preenchimento de metadados e miniaturas quando habilitado;
-- análise técnica da biblioteca ou de arquivos arrastados, com loudness, true peak, faixa dinâmica e classificação Boa, Média ou Ruim;
+- análise técnica da biblioteca ou de arquivos arrastados, com bitrate, taxa de amostragem, loudness, true peak, faixa dinâmica e classificação Boa, Média ou Ruim;
 - histórico de sucessos, falhas e tentativas;
 - atualização diária isolada do `yt-dlp` no aplicativo empacotado.
 
@@ -79,6 +79,8 @@ Não é necessário desativar o Gatekeeper globalmente. O aplicativo inclui Pyth
 Os arquivos são salvos em `paths.music_dir`. Histórico, cache e falhas ficam em `paths.state_dir`.
 
 Na tela **Planilha**, use `Selecionar todas`, `Selecionar filtradas` ou informe combinações como `1, 3-5, 9`. Na tela **Download**, o campo **Linhas da planilha** aceita a mesma sintaxe; deixe vazio ou use `todos` para processar a lista inteira. O atalho **Tagear Músicas** preenche os metadados ausentes da biblioteca configurada sem iniciar novos downloads.
+
+Na tela **Análise de Música**, a nota prioriza a qualidade técnica do arquivo: formatos sem perdas, bitrate e taxa de amostragem. Para arquivos com perdas, 192 kbps ou mais é considerado adequado e 256 kbps ou mais, alto; 44,1 kHz ou mais é a taxa esperada. Loudness entre -20 e -5 LUFS é tratada como faixa usual do perfil de música do IMD. True peak próximo ou acima de 0 dBTP gera um alerta de nível/masterização, mas não transforma sozinho um arquivo bem codificado em **Ruim**. Esses limites são uma heurística prática, não uma prova da origem da gravação nem da qualidade artística.
 
 ## Entradas aceitas
 

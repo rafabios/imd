@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>IMD Insane Music Downloader</title>
-    <link rel="stylesheet" href="/styles.css?v=20260812-audio-analysis1" />
+    <link rel="stylesheet" href="/styles.css?v=20260812-audio-analysis2" />
   </head>
   <body>
     <div class="app-shell">
@@ -145,7 +145,7 @@
             <div>
               <p class="eyebrow">LOUDNESS E ESPECTRO</p>
               <h2>Análise de Música</h2>
-              <p class="section-copy">Análise somente leitura, inspirada no Spek, com loudness em LUFS, pico real em dBTP e faixa dinâmica.</p>
+              <p class="section-copy">Leitura técnica inspirada no Spek: qualidade do arquivo por bitrate e taxa, com alertas separados de loudness, pico real e dinâmica.</p>
             </div>
             <div class="button-row">
               <button id="start-library-analysis" class="primary-button" type="button">Analisar biblioteca</button>
@@ -208,7 +208,7 @@
           </div>
           <input id="analysis-log-filter" class="log-filter" type="search" placeholder="Filtrar log da análise" />
           <pre id="analysis-log" class="task-log analysis-log">Nenhuma análise iniciada nesta sessão.</pre>
-          <p class="analysis-disclaimer">A nota aponta riscos técnicos; ela não prova a origem, autenticidade ou qualidade artística da gravação.</p>
+          <p class="analysis-disclaimer">A nota prioriza bitrate e taxa de amostragem. Pico alto é um alerta de nível e não condena sozinho uma faixa bem codificada; a análise não prova a origem nem a qualidade artística.</p>
         </section>
 
         <section id="sheets" class="panel wide-panel">
@@ -485,6 +485,6 @@
       </main>
     </div>
 
-    <script src="/app.js?v=20260812-audio-analysis1"></script>
+    <script src="/app.js?v=20260812-audio-analysis2"></script>
   </body>
 </html>

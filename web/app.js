@@ -916,6 +916,7 @@ function selectAnalysisResult(index) {
   drawAnalysisChart(item);
 
   analysisDetailEl.textContent = "";
+  (item.strengths || []).forEach((strength) => addAnalysisDetailCard("Ponto positivo", strength, "positive"));
   (item.reasons || []).forEach((reason) => addAnalysisDetailCard("Diagnóstico", reason, item.rating === "bad" ? "error" : item.rating === "medium" ? "warning" : ""));
   (item.recommendations || []).forEach((recommendation) => addAnalysisDetailCard("Sugestão", recommendation, "warning"));
   if (item.error) addAnalysisDetailCard("Falha na leitura", item.error, "error");

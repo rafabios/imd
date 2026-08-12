@@ -13,7 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 AUDIO_EXTENSIONS = {".mp3", ".m4a", ".mp4", ".flac", ".wav", ".ogg", ".opus", ".aac"}
 LOSSLESS_CODECS = {"flac", "alac", "wavpack", "ape"}
-ANALYSIS_METHOD_VERSION = 1
+ANALYSIS_METHOD_VERSION = 2
 
 
 def now_iso() -> str:
@@ -183,7 +183,8 @@ def _is_lossless(codec: str) -> bool:
 def classify_audio(metrics: Dict[str, Any]) -> Dict[str, Any]:
     score = 100
     critical_issue = False
-    warning_issue = False
+    medium_cap = False
+    strengths: List[str] = []
     reasons: List[str] = []
     recommendations: List[str] = []
     peak = _finite_number(metrics.get("true_peak_dbtp"))
@@ -194,84 +195,127 @@ def classify_audio(metrics: Dict[str, Any]) -> Dict[str, Any]:
     codec = str(metrics.get("codec") or "")
 
     if peak is None:
-        score -= 20
-        critical_issue = True
+        score -= 5
         reasons.append("Nao foi possivel medir o pico real.")
-    elif peak >= 0:
-        score -= 40
-        critical_issue = True
-        reasons.append(f"Pico real em {peak:.1f} dBTP, com risco forte de clipping.")
-        recommendations.append("Reduza o ganho e limite o true peak abaixo de -1 dBTP.")
-    elif peak > -1:
+    elif peak >= 6:
         score -= 15
-        warning_issue = True
+        medium_cap = True
+        reasons.append(f"Pico real muito alto: {peak:.1f} dBTP. Isso pode indicar clipping ou ganho excessivo.")
+        recommendations.append("Reduza o ganho e limite o true peak abaixo de -1 dBTP.")
+    elif peak >= 3:
+        score -= 10
+        reasons.append(f"Pico real alto: {peak:.1f} dBTP. Verifique se ha distorcao audivel.")
+        recommendations.append("Se houver distorcao, reduza o ganho e limite o true peak abaixo de -1 dBTP.")
+    elif peak >= 1:
+        score -= 7
+        reasons.append(f"Pico real acima do limite digital: {peak:.1f} dBTP.")
+        recommendations.append("Use o pico como alerta de masterizacao; ele nao reduz sozinho a qualidade da codificacao.")
+    elif peak >= 0:
+        score -= 5
+        reasons.append(f"Pico real em {peak:.1f} dBTP, no limite digital.")
+        recommendations.append("Para maior margem de reproducao, limite o true peak abaixo de -1 dBTP.")
+    elif peak > -1:
+        score -= 2
         reasons.append(f"Pico real em {peak:.1f} dBTP, muito proximo do limite digital.")
         recommendations.append("Deixe pelo menos 1 dB de margem no true peak.")
+    else:
+        strengths.append(f"Margem de pico segura: {peak:.1f} dBTP.")
 
     if loudness is None:
-        score -= 20
-        critical_issue = True
+        score -= 10
+        medium_cap = True
         reasons.append("Nao foi possivel medir a loudness integrada.")
-    elif loudness > -5 or loudness < -30:
+    elif loudness > -3 or loudness < -35:
         score -= 35
         critical_issue = True
         reasons.append(f"Loudness integrada extrema: {loudness:.1f} LUFS.")
         recommendations.append("Revise ganho, limitacao e normalizacao da faixa.")
-    elif loudness > -7 or loudness < -24:
-        score -= 15
-        warning_issue = True
-        reasons.append(f"Loudness fora da faixa usual para musica: {loudness:.1f} LUFS.")
+    elif loudness > -5 or loudness < -30:
+        score -= 20
+        medium_cap = True
+        reasons.append(f"Loudness bem fora da faixa usual para musica: {loudness:.1f} LUFS.")
+    elif loudness < -24:
+        score -= 10
+        medium_cap = True
+        reasons.append(f"Loudness baixa para a maior parte das musicas: {loudness:.1f} LUFS.")
+    elif loudness < -20:
+        score -= 4
+        reasons.append(f"Loudness um pouco baixa, mas ainda utilizavel: {loudness:.1f} LUFS.")
+    else:
+        strengths.append(f"Loudness dentro da faixa usual para musica: {loudness:.1f} LUFS.")
 
     if loudness_range is not None:
-        if loudness_range < 1:
+        if loudness_range < 0.5:
             score -= 12
-            warning_issue = True
+            medium_cap = True
             reasons.append(f"Faixa dinamica muito baixa: {loudness_range:.1f} LU.")
             recommendations.append("Verifique excesso de compressao ou limitacao.")
-        elif loudness_range > 20:
+        elif loudness_range < 1:
+            score -= 6
+            medium_cap = True
+            reasons.append(f"Faixa dinamica baixa: {loudness_range:.1f} LU.")
+        elif loudness_range > 25:
             score -= 8
             reasons.append(f"Faixa dinamica muito ampla: {loudness_range:.1f} LU.")
+        else:
+            strengths.append(f"Faixa dinamica aproveitavel: {loudness_range:.1f} LU.")
 
     if sample_rate is not None:
         if sample_rate < 22050:
-            score -= 35
+            score -= 45
             critical_issue = True
             reasons.append(f"Taxa de amostragem muito baixa: {int(sample_rate)} Hz.")
+        elif sample_rate < 32000:
+            score -= 30
+            medium_cap = True
+            reasons.append(f"Taxa de amostragem baixa para musica: {int(sample_rate)} Hz.")
         elif sample_rate < 44100:
             score -= 12
-            warning_issue = True
+            medium_cap = True
             reasons.append(f"Taxa de amostragem abaixo de 44,1 kHz: {int(sample_rate)} Hz.")
+        else:
+            strengths.append(f"Taxa de amostragem adequada: {sample_rate / 1000:g} kHz.")
 
-    if bit_rate is not None and not _is_lossless(codec):
+    if _is_lossless(codec):
+        strengths.append(f"Formato sem perdas: {codec.upper()}.")
+    elif bit_rate is not None:
         kbps = bit_rate / 1000
         if kbps < 96:
-            score -= 35
+            score -= 50
             critical_issue = True
             reasons.append(f"Bitrate baixo para musica: {kbps:.0f} kbps.")
             recommendations.append("Procure uma fonte com bitrate maior ou lossless.")
+        elif kbps < 128:
+            score -= 35
+            medium_cap = True
+            reasons.append(f"Bitrate baixo para musica: {kbps:.0f} kbps.")
         elif kbps < 160:
-            score -= 22
-            warning_issue = True
+            score -= 25
+            medium_cap = True
             reasons.append(f"Bitrate limitado: {kbps:.0f} kbps.")
         elif kbps < 192:
-            score -= 10
-            warning_issue = True
+            score -= 15
+            medium_cap = True
             reasons.append(f"Bitrate moderado: {kbps:.0f} kbps.")
+        elif kbps < 256:
+            score -= 5
+            strengths.append(f"Bitrate adequado: {kbps:.0f} kbps.")
+        else:
+            strengths.append(f"Bitrate alto: {kbps:.0f} kbps.")
 
     score = max(0, min(100, score))
     if critical_issue or score < 55:
         rating = "bad"
-    elif warning_issue or score < 80:
+    elif medium_cap or score < 80:
         rating = "medium"
     else:
         rating = "good"
-    if not reasons:
-        reasons.append("Niveis equilibrados, formato adequado e sem sinais tecnicos criticos.")
     labels = {"good": "Boa", "medium": "Média", "bad": "Ruim"}
     return {
         "rating": rating,
         "rating_label": labels[rating],
         "score": score,
+        "strengths": strengths,
         "reasons": reasons,
         "recommendations": recommendations,
     }
@@ -350,6 +394,7 @@ def analyze_library(root: Path | str, output: Optional[Path | str] = None) -> Di
                 "rating": "bad",
                 "rating_label": "Ruim",
                 "score": 0,
+                "strengths": [],
                 "reasons": ["O arquivo nao pode ser analisado."],
                 "recommendations": ["Verifique se o arquivo esta integro e em um formato suportado."],
                 "error": str(exc),
@@ -367,6 +412,7 @@ def analyze_library(root: Path | str, output: Optional[Path | str] = None) -> Di
         "generated_at": now_iso(),
         "library": str(folder),
         "method": "EBU R128 via FFmpeg; classificacao tecnica IMD",
+        "method_version": ANALYSIS_METHOD_VERSION,
         "counts": counts,
         "items": items,
     }
