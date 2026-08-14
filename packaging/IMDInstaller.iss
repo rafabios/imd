@@ -25,6 +25,7 @@ SetupLogging=yes
 
 [Files]
 Source: "..\dist\IMD\*"; DestDir: "{app}"; Excludes: "config.yaml,spotify_secrets.yaml,runtime_updates\*,config_backups\*,imports\*,tasks\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\config.sample.yaml"; DestDir: "{tmp}"; DestName: "imd-config.sample.yaml"; Flags: ignoreversion deleteafterinstall
 
 [InstallDelete]
 Type: files; Name: "{app}\IMD.exe"
@@ -134,7 +135,13 @@ var
   I: Integer;
   SamplePath: String;
 begin
-  SamplePath := ExpandConstant('{app}\config.sample.yaml');
+  { PyInstaller 6+ stores bundled data below _internal. Keep a dedicated
+    installer copy so config creation does not depend on that layout. }
+  SamplePath := ExpandConstant('{tmp}\imd-config.sample.yaml');
+  if not FileExists(SamplePath) then
+    SamplePath := ExpandConstant('{app}\_internal\config.sample.yaml');
+  if not FileExists(SamplePath) then
+    SamplePath := ExpandConstant('{app}\config.sample.yaml');
   if not LoadStringsFromFile(SamplePath, ConfigLines) then
     RaiseException('Nao foi possivel ler o modelo de configuracao: ' + SamplePath);
 

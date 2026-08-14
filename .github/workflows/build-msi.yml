@@ -220,7 +220,8 @@ jobs:
           $installDir = Join-Path $env:LOCALAPPDATA "IMD Insane Music Downloader"
           $installedExe = Join-Path $installDir "IMD.exe"
           $configPath = Join-Path $installDir "config.yaml"
-          $install = Start-Process -FilePath $setupPath -ArgumentList @("/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES") -Wait -PassThru
+          $setupInstallLog = "$(Resolve-Path dist)\setup-install.log"
+          $install = Start-Process -FilePath $setupPath -ArgumentList @("/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES", "/LOG=$setupInstallLog") -Wait -PassThru
           if ($install.ExitCode -ne 0) {
             throw "Instalacao EXE falhou com exit code $($install.ExitCode)."
           }
@@ -320,6 +321,7 @@ jobs:
             build/wix/
             dist/install.log
             dist/uninstall.log
+            dist/setup-install.log
 
       - name: Attach installers to GitHub Release
         if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)

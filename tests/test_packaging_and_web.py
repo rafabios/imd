@@ -26,7 +26,9 @@ def test_setup_only_asks_for_music_and_uses_internal_state_folder():
     assert "{localappdata}\\IMD Insane Music Downloader\\state" in source
     assert "LoadStringsFromFile" in source
     assert "SaveStringsToUTF8FileWithoutBOM" in source
-    assert "config.sample.yaml" in source
+    assert 'Source: "..\\config.sample.yaml"; DestDir: "{tmp}"; DestName: "imd-config.sample.yaml"' in source
+    assert "{tmp}\\imd-config.sample.yaml" in source
+    assert "{app}\\_internal\\config.sample.yaml" in source
 
 
 def test_setup_smoke_checks_known_music_folder_hidden_state_and_blank_sheet():
@@ -36,6 +38,8 @@ def test_setup_smoke_checks_known_music_folder_hidden_state_and_blank_sheet():
     assert 'Join-Path $installDir "state"' in source
     assert 'google_sheet_csv:\\s*""' in source
     assert "candidate_limit:\\s*6" in source
+    assert '"/LOG=$setupInstallLog"' in source
+    assert "dist/setup-install.log" in source
 
 
 def test_windows_workflow_accepts_inno_setup_6_or_7():
