@@ -29,6 +29,7 @@ O IMD roda no próprio computador e abre uma interface em `http://127.0.0.1:8765
 - reescaneamento de playlists sem baixar novamente o que já existe;
 - conversão em lote entre MP3, M4A, MP4, FLAC, WAV, OGG, OPUS e AAC;
 - preenchimento de metadados e miniaturas quando habilitado;
+- comparação de vários candidatos do YouTube, priorizando fontes oficiais e a melhor qualidade disponível antes do download;
 - análise técnica da biblioteca ou de arquivos arrastados, com bitrate, taxa de amostragem, loudness, true peak, faixa dinâmica e classificação Boa, Média ou Ruim;
 - histórico de sucessos, falhas e tentativas;
 - atualização diária isolada do `yt-dlp` no aplicativo empacotado.
@@ -39,10 +40,10 @@ O IMD roda no próprio computador e abre uma interface em `http://127.0.0.1:8765
 
 1. Acesse a [última release](https://github.com/rafabios/imd/releases/latest).
 2. Baixe `IMD-Insane-Music-Downloader-latest-Setup.exe`.
-3. Siga o assistente para escolher as pastas e, opcionalmente, a planilha do Google.
+3. Siga o assistente e confirme a pasta onde as músicas serão salvas.
 4. Abra o IMD pelo atalho criado no menu Iniciar ou na área de trabalho.
 
-O instalador funciona por usuário, não exige Python e inclui as dependências principais e o FFmpeg. Atualizações preservam o `config.yaml` existente.
+O instalador funciona por usuário, não exige Python e inclui as dependências principais e o FFmpeg. Ele usa a pasta **Músicas** real configurada no Windows, guarda histórico/cache internamente em `AppData\Local` e deixa a planilha para ser configurada no painel. Atualizações preservam o `config.yaml`; quando encontram o antigo caminho padrão `Music\IMD-State`, copiam o histórico para a nova pasta interna e mantêm a pasta antiga como segurança. Caminhos personalizados não são alterados.
 
 Se o Windows impedir a execução, consulte o guia com imagens em [Problemas comuns na instalação](https://imd.vemcompy.tec.br/#problems).
 
@@ -76,11 +77,15 @@ Não é necessário desativar o Gatekeeper globalmente. O aplicativo inclui Pyth
 4. Ajuste formato, qualidade e demais opções em **Configurações**.
 5. Inicie o download e acompanhe o log na tela.
 
-Os arquivos são salvos em `paths.music_dir`. Histórico, cache e falhas ficam em `paths.state_dir`.
+Os arquivos são salvos na pasta de músicas escolhida. Histórico, cache e falhas ficam em uma pasta interna do usuário e não precisam de configuração manual.
+
+Em **Configurações**, você pode colar o link comum de uma planilha do Google ou usar **Criar nova no Google**. O botão abre `sheets.new` na conta já conectada ao navegador. Depois, compartilhe a planilha como **Qualquer pessoa com o link**, copie o endereço e salve no IMD; o app converte o link para CSV automaticamente. Criar e acessar uma planilha privada diretamente pelo app exigiria OAuth, por isso esse fluxo não pede acesso à sua conta Google.
 
 Na tela **Planilha**, use `Selecionar todas`, `Selecionar filtradas` ou informe combinações como `1, 3-5, 9`. Na tela **Download**, o campo **Linhas da planilha** aceita a mesma sintaxe; deixe vazio ou use `todos` para processar a lista inteira. O atalho **Tagear Músicas** preenche os metadados ausentes da biblioteca configurada sem iniciar novos downloads.
 
 Na tela **Análise de Música**, a nota prioriza a qualidade técnica do arquivo: formatos sem perdas, bitrate e taxa de amostragem. Para arquivos com perdas, 192 kbps ou mais é considerado adequado e 256 kbps ou mais, alto; 44,1 kHz ou mais é a taxa esperada. Loudness entre -20 e -5 LUFS é tratada como faixa usual do perfil de música do IMD. True peak próximo ou acima de 0 dBTP gera um alerta de nível/masterização, mas não transforma sozinho um arquivo bem codificado em **Ruim**. Esses limites são uma heurística prática, não uma prova da origem da gravação nem da qualidade artística.
+
+Nos downloads do YouTube, o IMD compara candidatos de todas as consultas configuradas, favorece canais oficiais, Topic e VEVO, penaliza versões não solicitadas e inspeciona os formatos de áudio antes de escolher. Após baixar, uma verificação espectral rápida procura cortes rígidos suspeitos; quando encontra um e há alternativas, tenta automaticamente o próximo candidato. Se todas as fontes tiverem limitações, preserva a melhor delas. O log mostra separadamente a fonte recebida e a saída convertida; por exemplo, `Opus ~157 kbps -> MP3 320 kbps`. O MP3 final será compatível com a qualidade configurada, mas a conversão não recria detalhes ausentes na fonte original.
 
 ## Entradas aceitas
 
@@ -88,7 +93,7 @@ Na tela **Análise de Música**, a nota prioriza a qualidade técnica do arquivo
 - artista público do Spotify;
 - link direto do YouTube;
 - texto de pesquisa para o YouTube;
-- Google Sheets publicado como CSV;
+- Google Sheets compartilhado por link ou publicado como CSV;
 - arquivos locais `.csv`, `.txt` e `.xlsx`.
 
 ## Configuração
@@ -97,11 +102,10 @@ O arquivo [`config.sample.yaml`](config.sample.yaml) documenta todas as opções
 
 ```yaml
 source:
-  google_sheet_csv: "https://docs.google.com/spreadsheets/d/SEU_ID/export?format=csv&gid=0"
+  google_sheet_csv: ""
 
 paths:
   music_dir: "C:/Users/SEU_USUARIO/Music/IMD"
-  state_dir: "C:/Users/SEU_USUARIO/Music/IMD-State"
 
 audio:
   format: "mp3"
@@ -110,6 +114,8 @@ audio:
 spotify:
   mode: "EMBED"
 ```
+
+No app instalado, `paths.state_dir` é preenchido automaticamente dentro dos dados locais do usuário. O campo continua existindo no arquivo para compatibilidade e uso avançado, mas fica oculto no painel.
 
 Modos do Spotify:
 

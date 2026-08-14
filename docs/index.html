@@ -88,7 +88,7 @@
           <p class="eyebrow">Instalacao</p>
           <h2>Windows: baixe o Setup.exe e siga o assistente</h2>
           <p>
-            O instalador recomendado e o <code>Setup.exe</code>. Ele inclui o aplicativo, dependencias principais e telas simples para escolher a pasta de musicas, a pasta de estado e a URL CSV da sua planilha do Google.
+            O instalador recomendado e o <code>Setup.exe</code>. Ele inclui o aplicativo e as dependencias principais. Voce escolhe apenas a pasta de musicas; historico e cache ficam automaticamente na area interna do usuario, e a planilha e configurada depois no painel.
           </p>
         </div>
         <ol class="step-list">
@@ -102,7 +102,7 @@
           </li>
           <li>
             <strong>Clique em Avancar</strong>
-            <span>Confirme as pastas sugeridas ou escolha outras. No final, marque para abrir o IMD.</span>
+            <span>Confirme a pasta de musicas sugerida ou escolha outra. No final, marque para abrir o IMD.</span>
           </li>
         </ol>
       </section>
@@ -260,22 +260,6 @@
           </article>
           <article class="manual-card">
             <span class="manual-number">7</span>
-            <h3>Escolha a pasta de estado</h3>
-            <p>Essa pasta guarda historico, erros e cache. Pode manter a sugestao <code>IMD-State</code>.</p>
-            <figure class="manual-shot">
-              <img src="assets/7.png" alt="Tela para escolher a pasta de estado do IMD" loading="lazy" />
-            </figure>
-          </article>
-          <article class="manual-card">
-            <span class="manual-number">8</span>
-            <h3>Informe a planilha</h3>
-            <p>Cole a URL CSV do Google Sheets. Se ainda nao tiver, deixe o valor sugerido e ajuste depois no painel.</p>
-            <figure class="manual-shot">
-              <img src="assets/8.png" alt="Tela para informar a URL CSV da planilha do Google" loading="lazy" />
-            </figure>
-          </article>
-          <article class="manual-card">
-            <span class="manual-number">9</span>
             <h3>Escolha o atalho</h3>
             <p>Marque se quiser criar um atalho na area de trabalho. Depois clique em <strong>Next</strong>.</p>
             <figure class="manual-shot">
@@ -283,7 +267,7 @@
             </figure>
           </article>
           <article class="manual-card">
-            <span class="manual-number">10</span>
+            <span class="manual-number">8</span>
             <h3>Instale</h3>
             <p>Revise o resumo e clique em <strong>Install</strong> para iniciar a instalacao.</p>
             <figure class="manual-shot">
@@ -291,7 +275,7 @@
             </figure>
           </article>
           <article class="manual-card">
-            <span class="manual-number">11</span>
+            <span class="manual-number">9</span>
             <h3>Aguarde terminar</h3>
             <p>O instalador vai extrair os arquivos. Essa etapa pode levar alguns minutos.</p>
             <figure class="manual-shot">
@@ -299,7 +283,7 @@
             </figure>
           </article>
           <article class="manual-card">
-            <span class="manual-number">12</span>
+            <span class="manual-number">10</span>
             <h3>Finalize e abra</h3>
             <p>Deixe <strong>Abrir o IMD agora</strong> marcado e clique em <strong>Finish</strong>.</p>
             <figure class="manual-shot">
@@ -307,7 +291,7 @@
             </figure>
           </article>
           <article class="manual-card manual-card-wide">
-            <span class="manual-number">13</span>
+            <span class="manual-number">11</span>
             <h3>Use o painel</h3>
             <p>O navegador abre em <code>127.0.0.1:8765</code>. Use os botoes <strong>Download Spotify</strong> ou <strong>Download YouTube</strong>.</p>
             <figure class="manual-shot">
@@ -317,12 +301,12 @@
         </div>
 
         <div class="help-panel">
-          <h3>Como pegar a URL CSV da planilha</h3>
+          <h3>Como configurar uma planilha do Google</h3>
           <ol>
-            <li>Abra sua planilha no Google Sheets.</li>
-            <li>Garanta que ela esteja acessivel para quem tiver o link, ou publicada para acesso CSV.</li>
-            <li>Use um link no formato <code>https://docs.google.com/spreadsheets/d/ID_DA_PLANILHA/export?format=csv&gid=0</code>.</li>
-            <li>Cole esse link no instalador ou em <strong>Configuracoes</strong> dentro do painel.</li>
+            <li>No painel do IMD, abra <strong>Configuracoes</strong>.</li>
+            <li>Cole o link comum de uma planilha existente ou clique em <strong>Criar nova no Google</strong>.</li>
+            <li>No Google Sheets, compartilhe como <strong>Qualquer pessoa com o link</strong>.</li>
+            <li>Copie o link do navegador, cole no IMD e clique em <strong>Salvar</strong>. O formato CSV e ajustado automaticamente.</li>
           </ol>
         </div>
       </section>

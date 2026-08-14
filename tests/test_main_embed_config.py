@@ -94,6 +94,13 @@ def test_config_values_are_loaded(app):
     assert app.GOOGLE_SHEET_CSV.startswith("https://docs.google.com/")
     assert app.YTDLP_SEARCH_TERMS
     assert app.YTDLP_PLAYER_CLIENTS == ["android", "web", "ios"]
+    assert app.YTDLP_CANDIDATE_LIMIT >= app.YTDLP_SEARCH_RESULTS
+    assert app.YTDLP_SEARCH_QUERY_LIMIT >= 1
+    assert app.YTDLP_DOWNLOAD_ATTEMPTS >= 1
+    assert app.YTDLP_PREFER_OFFICIAL is True
+    assert app.YTDLP_MIN_SOURCE_BITRATE_KBPS >= 96
+    assert app.YTDLP_SPECTRAL_CHECK is True
+    assert app.YTDLP_SPECTRAL_CUTOFF_HZ >= 16000
 
 
 def test_spotify_url_normalization(app):
@@ -266,9 +273,17 @@ def test_cached_spotify_playlist_flags_possible_embed_limit(app, monkeypatch):
 
 def test_search_queries_use_config_template(app):
     queries = app.build_search_queries("Artist", "Track")
-    assert queries[0] == "Artist Track extended"
+    assert queries[0] == "Artist Track official audio"
     assert "Artist Track official audio" in queries
+    assert "Artist Track audio" in queries
+    assert "Artist Track extended" not in queries
     assert len(queries) == len(set(queries))
+
+
+def test_search_queries_prioritize_variant_explicitly_requested_in_title(app):
+    queries = app.build_search_queries("Artist", "Track Extended Mix")
+
+    assert queries[0] == "Artist Track Extended Mix extended"
 
 
 def test_ytdlp_opts_respect_config(app):
@@ -277,6 +292,8 @@ def test_ytdlp_opts_respect_config(app):
     assert opts["extractor_retries"] == app.YTDLP_EXTRACTOR_RETRIES
     assert opts["extractor_args"]["youtube"]["player_client"] == app.YTDLP_PLAYER_CLIENTS
     assert opts["remote_components"] == app.YTDLP_REMOTE_COMPONENTS
+    assert opts["progress_hooks"] == [app.youtube_source_progress_hook]
+    assert opts["extract_flat"] == "in_playlist"
     assert "cookiesfrombrowser" not in opts
 
 
@@ -293,6 +310,366 @@ def test_choose_youtube_url_prefers_title_and_artist(app):
             }
 
     assert app.choose_youtube_url(FakeYDL(), "Artist Track official audio", "Artist", "Track") == "https://youtu.be/good"
+
+
+def test_choose_youtube_candidates_prefers_official_source_over_unrequested_extended_upload(app, monkeypatch):
+    monkeypatch.setattr(app, "YTDLP_SEARCH_RESULTS", 2)
+    monkeypatch.setattr(app, "YTDLP_CANDIDATE_LIMIT", 5)
+    monkeypatch.setattr(app, "YTDLP_PREFER_OFFICIAL", True)
+
+    unofficial = {
+        "webpage_url": "https://youtu.be/extended",
+        "title": "The Prodigy - Breathy Extended Mix",
+        "uploader": "Dance Uploads",
+        "duration": 648,
+        "view_count": 1000000,
+        "formats": [
+            {"format_id": "251", "acodec": "opus", "vcodec": "none", "abr": 160, "asr": 48000},
+        ],
+    }
+    official = {
+        "webpage_url": "https://youtu.be/official",
+        "title": "The Prodigy - Breathe (Official Audio)",
+        "uploader": "The Prodigy",
+        "channel": "The Prodigy",
+        "channel_is_verified": True,
+        "duration": 336,
+        "view_count": 500000,
+        "formats": [
+            {"format_id": "140", "acodec": "mp4a.40.2", "vcodec": "none", "abr": 129, "asr": 44100},
+        ],
+    }
+
+    class FakeYDL:
+        def extract_info(self, url, download=False):
+            assert download is False
+            return {"entries": [unofficial, official]}
+
+    candidates = app.choose_youtube_candidates(
+        FakeYDL(),
+        ["The Prodigy Breathy official audio", "The Prodigy Breathy extended"],
+        "The Prodigy",
+        "Breathy",
+    )
+
+    assert candidates[0]["webpage_url"] == "https://youtu.be/official"
+    assert candidates[0]["_imd_score"] > candidates[1]["_imd_score"]
+
+
+def test_explicit_extended_title_is_not_penalized(app, monkeypatch):
+    monkeypatch.setattr(app, "YTDLP_PREFER_OFFICIAL", False)
+    entry = {"title": "Artist - Track Extended Mix", "uploader": "Artist"}
+
+    requested_score = app.score_youtube_entry(entry, "Artist", "Track Extended Mix")
+    generic_score = app.score_youtube_entry(entry, "Artist", "Track")
+
+    assert requested_score > generic_score
+
+
+def test_variant_markers_use_word_boundaries(app):
+    assert app._youtube_variant_penalty("oliver heldens track", "Track") == 0
+    assert app._youtube_variant_penalty("artist track live", "Track") == 45
+
+
+def test_missing_channel_does_not_receive_artist_channel_bonus(app, monkeypatch):
+    monkeypatch.setattr(app, "YTDLP_PREFER_OFFICIAL", True)
+
+    assert app._youtube_official_score({"title": "Track"}, "Artist") == 0
+
+
+def test_youtube_source_description_reports_real_stream_quality(app):
+    entry = {
+        "formats": [
+            {"format_id": "140", "acodec": "mp4a.40.2", "vcodec": "none", "abr": 129, "asr": 44100},
+            {"format_id": "251", "acodec": "opus", "vcodec": "none", "abr": 157, "asr": 48000},
+        ]
+    }
+
+    assert app.best_youtube_audio_format(entry)["format_id"] == "251"
+    assert app.youtube_audio_bitrate_kbps(entry) == 157
+    assert app.youtube_source_description(entry) == "formato 251 | opus | ~157 kbps | 48 kHz"
+
+
+def test_youtube_progress_hook_distinguishes_source_from_mp3_output(app, monkeypatch):
+    messages = []
+    monkeypatch.setattr(app, "AUDIO_FORMAT", "mp3")
+    monkeypatch.setattr(app, "QUALITY_AUDIO", "320")
+    monkeypatch.setattr(app, "log", messages.append)
+
+    app.youtube_source_progress_hook(
+        {
+            "status": "finished",
+            "info_dict": {
+                "format_id": "251",
+                "ext": "webm",
+                "acodec": "opus",
+                "vcodec": "none",
+                "abr": 157,
+                "asr": 48000,
+            },
+        }
+    )
+
+    assert messages[0] == "Fonte baixada do YouTube: formato 251 | opus | ~157 kbps | 48 kHz"
+    assert "fonte ~157 kbps -> MP3 320 kbps" in messages[1]
+    assert "nao cria qualidade" in messages[1]
+
+
+def test_youtube_progress_hook_ignores_non_finished_events(app, monkeypatch):
+    messages = []
+    monkeypatch.setattr(app, "log", messages.append)
+
+    app.youtube_source_progress_hook({"status": "downloading", "info_dict": {"abr": 157}})
+
+    assert messages == []
+
+
+def test_spectral_profile_detects_hard_16khz_cutoff(app, monkeypatch):
+    monkeypatch.setattr(app, "YTDLP_SPECTRAL_CUTOFF_HZ", 17000)
+    monkeypatch.setattr(app, "YTDLP_SPECTRAL_DROP_DB", 20)
+    frequencies = app.np.linspace(0, 22050, 2049)
+    healthy_magnitude = 1.0 / (1.0 + frequencies / 20000.0)
+    lowpass_magnitude = app.np.where(frequencies <= 16000, 1.0, 0.00001)
+
+    healthy = app.evaluate_spectral_profile(frequencies, healthy_magnitude)
+    lowpass = app.evaluate_spectral_profile(frequencies, lowpass_magnitude)
+
+    assert healthy["available"] is True
+    assert healthy["suspicious"] is False
+    assert healthy["cutoff_hz"] >= 20000
+    assert lowpass["available"] is True
+    assert lowpass["suspicious"] is True
+    assert 15700 <= lowpass["cutoff_hz"] <= 16100
+    assert lowpass["drop_db"] <= -80
+
+
+def test_candidates_below_minimum_bitrate_are_ranked_after_acceptable_sources(app, monkeypatch):
+    monkeypatch.setattr(app, "YTDLP_MIN_SOURCE_BITRATE_KBPS", 120)
+    low_official = {
+        "webpage_url": "https://youtu.be/low",
+        "title": "Artist - Track (Official Audio)",
+        "uploader": "Artist - Topic",
+        "formats": [{"format_id": "low", "acodec": "aac", "vcodec": "none", "abr": 64}],
+    }
+    acceptable = {
+        "webpage_url": "https://youtu.be/acceptable",
+        "title": "Artist - Track",
+        "uploader": "Artist",
+        "formats": [{"format_id": "ok", "acodec": "aac", "vcodec": "none", "abr": 128}],
+    }
+
+    class FakeYDL:
+        def extract_info(self, url, download=False):
+            return {"entries": [low_official, acceptable]}
+
+    candidates = app.choose_youtube_candidates(FakeYDL(), ["Artist Track"], "Artist", "Track")
+
+    assert candidates[0]["webpage_url"] == "https://youtu.be/acceptable"
+    assert app.youtube_source_quality_tier(candidates[0]) == 2
+    assert app.youtube_source_quality_tier(candidates[1]) == 0
+
+
+def test_candidate_format_inspection_hydrates_flat_search_results(app, monkeypatch):
+    monkeypatch.setattr(app, "YTDLP_MIN_SOURCE_BITRATE_KBPS", 120)
+    direct_calls = []
+
+    class FakeYDL:
+        def extract_info(self, url, download=False):
+            if url.startswith("ytsearch"):
+                return {
+                    "entries": [
+                        {"webpage_url": "https://youtu.be/one", "title": "Artist Track", "uploader": "Artist"},
+                        {"webpage_url": "https://youtu.be/two", "title": "Artist Track", "uploader": "Artist"},
+                    ]
+                }
+            direct_calls.append(url)
+            bitrate = 128 if url.endswith("one") else 160
+            return {
+                "webpage_url": url,
+                "title": "Artist Track",
+                "uploader": "Artist",
+                "formats": [{"format_id": url[-3:], "acodec": "opus", "vcodec": "none", "abr": bitrate}],
+            }
+
+    candidates = app.choose_youtube_candidates(
+        FakeYDL(), ["Artist Track"], "Artist", "Track", inspect_formats=True
+    )
+
+    assert direct_calls == ["https://youtu.be/one", "https://youtu.be/two"]
+    assert candidates[0]["webpage_url"] == "https://youtu.be/two"
+    assert app.youtube_audio_bitrate_kbps(candidates[0]) == 160
+
+
+def test_candidate_search_continues_when_one_query_fails(app):
+    class FakeYDL:
+        def extract_info(self, url, download=False):
+            if "broken query" in url:
+                raise RuntimeError("temporary search failure")
+            return {
+                "entries": [
+                    {"webpage_url": "https://youtu.be/good", "title": "Artist Track", "uploader": "Artist"}
+                ]
+            }
+
+    candidates = app.choose_youtube_candidates(
+        FakeYDL(), ["broken query", "Artist Track official audio"], "Artist", "Track"
+    )
+
+    assert [item["webpage_url"] for item in candidates] == ["https://youtu.be/good"]
+
+
+def test_run_youtube_track_falls_back_to_next_ranked_candidate(app, monkeypatch, tmp_path):
+    attempts = []
+    messages = []
+    candidates = [
+        {"webpage_url": "https://youtu.be/first", "title": "Artist Track Official", "uploader": "Artist"},
+        {"webpage_url": "https://youtu.be/second", "title": "Artist Track", "uploader": "Artist"},
+    ]
+
+    class FakeYDL:
+        def __init__(self, options):
+            self.options = options
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def download(self, urls):
+            attempts.append(urls[0])
+            if urls[0].endswith("first"):
+                return 1
+            (tmp_path / "Artist - Track.mp3").write_bytes(b"mp3")
+            return 0
+
+    monkeypatch.setattr(app, "YTDLP_DOWNLOAD_ATTEMPTS", 2)
+    monkeypatch.setattr(app, "YTDLP_COOKIES_FROM_BROWSER", "")
+    monkeypatch.setattr(app, "YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN", False)
+    monkeypatch.setattr(app, "AUDIO_FORMAT", "mp3")
+    monkeypatch.setattr(app, "DETECT_BPM", False)
+    monkeypatch.setattr(app, "build_search_queries", lambda artist, title: ["Artist Track"])
+    monkeypatch.setattr(app, "choose_youtube_candidates", lambda *args, **kwargs: candidates)
+    monkeypatch.setattr(app, "yt_dlp_opts", lambda *args, **kwargs: {})
+    monkeypatch.setattr(app.yt_dlp, "YoutubeDL", FakeYDL)
+    monkeypatch.setattr(app, "log", messages.append)
+    monkeypatch.setattr(app, "log_error", messages.append)
+    history = set()
+
+    status, path = app.run_youtube_track(
+        "Artist", "Track", "Genre", history, target_folder=str(tmp_path), use_history=False
+    )
+
+    assert status == "downloaded"
+    assert path == str(tmp_path / "Artist - Track.mp3")
+    assert attempts == ["https://youtu.be/first", "https://youtu.be/second"]
+    assert any("YouTube selecionado: https://youtu.be/second" in message for message in messages)
+    assert app.track_id("Artist", "Track", "Genre") in history
+
+
+def test_run_youtube_track_retries_after_suspicious_spectral_cutoff(app, monkeypatch, tmp_path):
+    attempts = []
+    messages = []
+    candidates = [
+        {"webpage_url": "https://youtu.be/lowpass", "title": "Artist Track", "uploader": "Artist"},
+        {"webpage_url": "https://youtu.be/full-spectrum", "title": "Artist Track", "uploader": "Artist"},
+    ]
+
+    class FakeYDL:
+        def __init__(self, options):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def download(self, urls):
+            attempts.append(urls[0])
+            content = b"lowpass" if urls[0].endswith("lowpass") else b"full-spectrum"
+            (tmp_path / "Artist - Track.mp3").write_bytes(content)
+            return 0
+
+    def fake_spectrum(path):
+        if Path(path).read_bytes() == b"lowpass":
+            return {"available": True, "suspicious": True, "cutoff_hz": 15900, "drop_db": -45.0}
+        return {"available": True, "suspicious": False, "cutoff_hz": 20100, "drop_db": -4.0}
+
+    monkeypatch.setattr(app, "YTDLP_DOWNLOAD_ATTEMPTS", 2)
+    monkeypatch.setattr(app, "YTDLP_COOKIES_FROM_BROWSER", "")
+    monkeypatch.setattr(app, "YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN", False)
+    monkeypatch.setattr(app, "AUDIO_FORMAT", "mp3")
+    monkeypatch.setattr(app, "DETECT_BPM", False)
+    monkeypatch.setattr(app, "build_search_queries", lambda artist, title: ["Artist Track"])
+    monkeypatch.setattr(app, "choose_youtube_candidates", lambda *args, **kwargs: candidates)
+    monkeypatch.setattr(app, "inspect_downloaded_spectrum", fake_spectrum)
+    monkeypatch.setattr(app, "yt_dlp_opts", lambda *args, **kwargs: {})
+    monkeypatch.setattr(app.yt_dlp, "YoutubeDL", FakeYDL)
+    monkeypatch.setattr(app, "log", messages.append)
+    monkeypatch.setattr(app, "log_error", messages.append)
+
+    status, path = app.run_youtube_track(
+        "Artist", "Track", "Genre", set(), target_folder=str(tmp_path), use_history=False
+    )
+
+    assert status == "downloaded"
+    assert Path(path).read_bytes() == b"full-spectrum"
+    assert attempts == ["https://youtu.be/lowpass", "https://youtu.be/full-spectrum"]
+    assert any("Corte espectral suspeito" in message for message in messages)
+    assert any("proximo candidato" in message for message in messages)
+    assert not list(tmp_path.glob(".imd-quality-*"))
+
+
+def test_all_suspicious_sources_keep_best_spectral_fallback(app, monkeypatch, tmp_path):
+    candidates = [
+        {"webpage_url": "https://youtu.be/better", "title": "Artist Track", "uploader": "Artist"},
+        {"webpage_url": "https://youtu.be/worse", "title": "Artist Track", "uploader": "Artist"},
+    ]
+
+    class FakeYDL:
+        def __init__(self, options):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def download(self, urls):
+            (tmp_path / "Artist - Track.mp3").write_bytes(b"better" if urls[0].endswith("better") else b"worse")
+            return 0
+
+    def fake_spectrum(path):
+        better = Path(path).read_bytes() == b"better"
+        return {
+            "available": True,
+            "suspicious": True,
+            "cutoff_hz": 16000 if better else 15000,
+            "drop_db": -40.0 if better else -35.0,
+        }
+
+    monkeypatch.setattr(app, "YTDLP_DOWNLOAD_ATTEMPTS", 2)
+    monkeypatch.setattr(app, "YTDLP_COOKIES_FROM_BROWSER", "")
+    monkeypatch.setattr(app, "YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN", False)
+    monkeypatch.setattr(app, "AUDIO_FORMAT", "mp3")
+    monkeypatch.setattr(app, "DETECT_BPM", False)
+    monkeypatch.setattr(app, "build_search_queries", lambda artist, title: ["Artist Track"])
+    monkeypatch.setattr(app, "choose_youtube_candidates", lambda *args, **kwargs: candidates)
+    monkeypatch.setattr(app, "inspect_downloaded_spectrum", fake_spectrum)
+    monkeypatch.setattr(app, "yt_dlp_opts", lambda *args, **kwargs: {})
+    monkeypatch.setattr(app.yt_dlp, "YoutubeDL", FakeYDL)
+    monkeypatch.setattr(app, "log", lambda message: None)
+    monkeypatch.setattr(app, "log_error", lambda message: None)
+
+    status, path = app.run_youtube_track(
+        "Artist", "Track", "Genre", set(), target_folder=str(tmp_path), use_history=False
+    )
+
+    assert status == "downloaded"
+    assert Path(path).read_bytes() == b"better"
+    assert not list(tmp_path.glob(".imd-quality-*"))
 
 
 def test_find_downloaded_file_prefers_configured_extension(app, tmp_path):

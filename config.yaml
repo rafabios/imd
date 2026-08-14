@@ -65,6 +65,15 @@ ytdlp:
   format: "bestaudio/best"
   query_template: "{artist} {title} {term}"
   search_results: 3
+  search_query_limit: 3
+  candidate_limit: 6
+  download_attempts: 3
+  prefer_official: true
+  min_source_bitrate_kbps: 120
+  spectral_check: true
+  spectral_cutoff_hz: 17000
+  spectral_drop_db: 20
+  spectral_seconds: 60
   player_client: "android"
   player_clients:
     - "android"
@@ -76,8 +85,8 @@ ytdlp:
     - "ejs:github"
   cookies_from_browser: null # edge, chrome, firefox, off ou null
   search_terms:
-    - "extended"
     - "official audio"
     - "official music video"
-    - "lyrics"
     - "audio"
+    - "extended"
+    - "lyrics"

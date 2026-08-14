@@ -1,4 +1,5 @@
 import argparse
+import copy
 import csv
 import json
 import mimetypes
@@ -28,6 +29,7 @@ import yaml
 import pandas as pd
 import requests
 
+from google_sheets import normalize_google_sheet_csv_url
 from imd_paths import frozen_app_data_dir
 from row_selection import parse_row_selection
 
@@ -199,13 +201,17 @@ def backup_config_file() -> Path:
 def save_config(config: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(config, dict):
         raise ValueError("Config recebido precisa ser um objeto.")
+    normalized_config = copy.deepcopy(config)
+    source = normalized_config.get("source")
+    if isinstance(source, dict) and "google_sheet_csv" in source:
+        source["google_sheet_csv"] = normalize_google_sheet_csv_url(source.get("google_sheet_csv"))
     sample = read_yaml_file(SAMPLE_CONFIG_FILE)
-    valid, messages = validate_config_data(config, sample)
+    valid, messages = validate_config_data(normalized_config, sample)
     if not valid:
         return {"ok": False, "validation": {"ok": False, "messages": messages}}
 
     backup_path = backup_config_file()
-    write_yaml_file(CONFIG_FILE, config)
+    write_yaml_file(CONFIG_FILE, normalized_config)
     data = load_dashboard_data()
     data["backup"] = str(backup_path)
     return data
@@ -771,7 +777,6 @@ def config_summary(config: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "music_dir": paths.get("music_dir"),
-        "state_dir": paths.get("state_dir"),
         "audio_format": audio.get("format"),
         "dry_run": execution.get("dry_run"),
         "reescan_list": execution.get("reescan_list"),
@@ -917,11 +922,12 @@ def classify_sheet_row(row: Dict[str, str]) -> str:
 
 
 def read_sheet_dataframe(url_or_path: str, disable_ssl_verify: bool = False) -> pd.DataFrame:
-    parsed = urlparse(str(url_or_path))
+    normalized_source = normalize_google_sheet_csv_url(url_or_path)
+    parsed = urlparse(normalized_source)
     if parsed.scheme in ("http", "https"):
         try:
             response = requests.get(
-                url_or_path,
+                normalized_source,
                 timeout=30,
                 verify=not disable_ssl_verify,
                 headers={"User-Agent": "IMDLocal/0.1"},
@@ -930,10 +936,10 @@ def read_sheet_dataframe(url_or_path: str, disable_ssl_verify: bool = False) -> 
             content = response.content.decode(response.encoding or "utf-8-sig")
         except requests.RequestException:
             context = ssl._create_unverified_context() if disable_ssl_verify else None
-            with urllib.request.urlopen(url_or_path, timeout=30, context=context) as response:
+            with urllib.request.urlopen(normalized_source, timeout=30, context=context) as response:
                 content = response.read().decode("utf-8-sig")
         return pd.read_csv(StringIO(content))
-    return pd.read_csv(url_or_path)
+    return pd.read_csv(normalized_source)
 
 
 def format_error(e: Exception) -> str:

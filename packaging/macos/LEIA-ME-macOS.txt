@@ -39,7 +39,7 @@ Musicas:
   ~/Music/IMD
 
 Historico e estado:
-  ~/Music/IMD-State
+  ~/Library/Application Support/IMD Insane Music Downloader/state
 
 Projeto oficial:
   https://github.com/rafabios/imd

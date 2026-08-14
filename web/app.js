@@ -114,7 +114,6 @@ let historyData = null;
 
 const labels = {
   music_dir: "Pasta das musicas",
-  state_dir: "Pasta de estado",
   audio_format: "Formato de download",
   dry_run: "Modo teste",
   reescan_list: "Reescan",
@@ -136,9 +135,8 @@ const selectOptions = {
 };
 
 const fieldNames = {
-  "source.google_sheet_csv": "URL da planilha",
+  "source.google_sheet_csv": "URL da planilha do Google",
   "paths.music_dir": "Pasta das musicas",
-  "paths.state_dir": "Pasta de estado",
   "execution.reescan_list": "Reescan de playlists/artistas",
   "execution.dry_run": "Modo teste",
   "execution.tagmusic": "Apenas preencher metadados",
@@ -159,12 +157,20 @@ const fieldNames = {
   "conversion.ffmpeg_threads": "Threads por arquivo",
   "spotify.mode": "Modo Spotify",
   "ytdlp.cookies_from_browser": "Cookies do navegador",
+  "ytdlp.candidate_limit": "Candidatos do YouTube comparados",
+  "ytdlp.search_query_limit": "Consultas do YouTube por faixa",
+  "ytdlp.download_attempts": "Tentativas alternativas de download",
+  "ytdlp.prefer_official": "Priorizar canais oficiais",
+  "ytdlp.min_source_bitrate_kbps": "Bitrate minimo preferido da fonte",
+  "ytdlp.spectral_check": "Verificar corte espectral apos baixar",
+  "ytdlp.spectral_cutoff_hz": "Frequencia minima do espectro",
+  "ytdlp.spectral_drop_db": "Queda espectral suspeita",
+  "ytdlp.spectral_seconds": "Segundos da verificacao espectral",
 };
 
 const basicFields = new Set([
   "source.google_sheet_csv",
   "paths.music_dir",
-  "paths.state_dir",
   "execution.reescan_list",
   "execution.dry_run",
   "execution.only_row",
@@ -182,12 +188,23 @@ const basicFields = new Set([
   "conversion.workers",
 ]);
 
+const hiddenConfigFields = new Set([
+  "paths.state_dir",
+]);
+
 const numberFields = new Set([
   "audio.quality",
   "audio.bpm_seconds",
   "spotify.embed_timeout_seconds",
   "history.max_failures_to_mark_done",
   "ytdlp.search_results",
+  "ytdlp.search_query_limit",
+  "ytdlp.candidate_limit",
+  "ytdlp.download_attempts",
+  "ytdlp.min_source_bitrate_kbps",
+  "ytdlp.spectral_cutoff_hz",
+  "ytdlp.spectral_drop_db",
+  "ytdlp.spectral_seconds",
   "ytdlp.concurrent_fragments",
   "ytdlp.extractor_retries",
   "conversion.workers",
@@ -335,15 +352,43 @@ function createInput(path, value, type) {
   return input;
 }
 
+function appendGoogleSheetControls(wrapper, input) {
+  wrapper.classList.add("google-sheet-field");
+  input.placeholder = "Cole o link comum da sua planilha do Google Sheets";
+  input.autocomplete = "url";
+  input.inputMode = "url";
+
+  const actions = document.createElement("div");
+  actions.className = "config-field-actions";
+
+  const createLink = document.createElement("a");
+  createLink.className = "secondary-button config-link-button";
+  createLink.href = "https://sheets.new";
+  createLink.target = "_blank";
+  createLink.rel = "noopener noreferrer";
+  createLink.textContent = "Criar nova no Google";
+  createLink.addEventListener("click", () => {
+    setSaveStatus("Depois de criar e compartilhar a planilha, copie o link, cole no campo e clique em Salvar.");
+  });
+
+  const help = document.createElement("p");
+  help.className = "config-field-help";
+  help.textContent = "Aceita o link comum do navegador. Para o IMD ler sem acessar sua conta, compartilhe a planilha como 'Qualquer pessoa com o link'.";
+
+  actions.appendChild(createLink);
+  wrapper.append(actions, help);
+}
+
 function renderConfigEditor(config) {
   currentConfig = config;
   fieldTypes = new Map();
   configFormEl.innerHTML = "";
   configTabsEl.innerHTML = "";
 
+  const visibleFields = flattenConfig(config).filter(([path]) => !hiddenConfigFields.has(path));
   const groups = [
-    ["basico", "Básico", flattenConfig(config).filter(([path]) => basicFields.has(path))],
-    ["avancado", "Avançado", flattenConfig(config).filter(([path]) => !basicFields.has(path))],
+    ["basico", "Básico", visibleFields.filter(([path]) => basicFields.has(path))],
+    ["avancado", "Avançado", visibleFields.filter(([path]) => !basicFields.has(path))],
   ];
 
   groups.forEach(([sectionName, labelText, fieldsForSection]) => {
@@ -381,6 +426,9 @@ function renderConfigEditor(config) {
 
       wrapper.appendChild(label);
       wrapper.appendChild(input);
+      if (path === "source.google_sheet_csv") {
+        appendGoogleSheetControls(wrapper, input);
+      }
       fields.appendChild(wrapper);
     });
 
@@ -389,6 +437,7 @@ function renderConfigEditor(config) {
   });
   showConfigSection("basico");
   updateDangerWarning();
+  configFormEl.removeEventListener("change", updateDangerWarning);
   configFormEl.addEventListener("change", updateDangerWarning);
 }
 
@@ -415,7 +464,7 @@ function updateDangerWarning() {
 }
 
 function collectConfigFromForm() {
-  const nextConfig = {};
+  const nextConfig = JSON.parse(JSON.stringify(currentConfig));
   fieldTypes.forEach((type, path) => {
     const field = configFormEl.querySelector(`[data-path="${path}"]`);
     let value;

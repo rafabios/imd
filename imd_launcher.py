@@ -1,15 +1,18 @@
 import os
 import json
 import hashlib
+import shutil
 import sys
 import threading
 import time
 import urllib.request
 import webbrowser
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
-from imd_paths import default_music_dir, default_state_dir, frozen_app_data_dir
+import yaml
+
+from imd_paths import default_music_dir, default_state_dir, frozen_app_data_dir, legacy_default_state_dir
 
 
 APP_NAME = "IMD Insane Music Downloader"
@@ -189,9 +192,86 @@ def print_banner() -> None:
 
 def create_initial_config(sample_file: Path, config_file: Path) -> None:
     content = sample_file.read_text(encoding="utf-8")
+    content = content.replace(
+        "C:/Users/SEU_USUARIO/AppData/Local/IMD Insane Music Downloader/state",
+        default_state_dir().as_posix(),
+    )
     content = content.replace("C:/Users/SEU_USUARIO/Music/IMD-State", default_state_dir().as_posix())
     content = content.replace("C:/Users/SEU_USUARIO/Music/IMD", default_music_dir().as_posix())
     config_file.write_text(content, encoding="utf-8")
+
+
+def merge_missing_config_values(current: dict, defaults: dict) -> bool:
+    changed = False
+    for key, default_value in defaults.items():
+        if key not in current:
+            current[key] = default_value
+            changed = True
+        elif isinstance(current[key], dict) and isinstance(default_value, dict):
+            changed = merge_missing_config_values(current[key], default_value) or changed
+    return changed
+
+
+def update_existing_config_schema(sample_file: Path, config_file: Path) -> Path | None:
+    sample = yaml.safe_load(sample_file.read_text(encoding="utf-8")) or {}
+    current = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
+    if not isinstance(sample, dict) or not isinstance(current, dict):
+        raise RuntimeError("config.yaml e config.sample.yaml precisam conter mapas.")
+    if not merge_missing_config_values(current, sample):
+        return None
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup = config_file.with_name(f"config.pre-schema-{stamp}.yaml")
+    shutil.copy2(config_file, backup)
+    temporary = config_file.with_name(config_file.name + ".tmp")
+    temporary.write_text(
+        yaml.safe_dump(current, sort_keys=False, allow_unicode=False, default_flow_style=False),
+        encoding="utf-8",
+    )
+    temporary.replace(config_file)
+    return backup
+
+
+def migrate_legacy_state_directory(config_file: Path) -> Path | None:
+    current = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
+    paths = current.get("paths") if isinstance(current, dict) else None
+    if not isinstance(paths, dict):
+        return None
+
+    configured_value = str(paths.get("state_dir") or "").strip()
+    if not configured_value:
+        return None
+
+    configured = Path(os.path.expandvars(os.path.expanduser(configured_value)))
+    legacy = legacy_default_state_dir()
+    target = default_state_dir()
+
+    def normalized(path: Path) -> str:
+        return os.path.normcase(str(path.resolve(strict=False)))
+
+    if normalized(configured) != normalized(legacy) or normalized(configured) == normalized(target):
+        return None
+    if configured.exists() and not configured.is_dir():
+        return None
+    if target.exists() and (not target.is_dir() or any(target.iterdir())):
+        return None
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup = config_file.with_name(f"config.pre-state-migration-{stamp}.yaml")
+    shutil.copy2(config_file, backup)
+
+    if configured.exists():
+        shutil.copytree(configured, target, dirs_exist_ok=True)
+    else:
+        target.mkdir(parents=True, exist_ok=True)
+
+    paths["state_dir"] = target.as_posix()
+    temporary = config_file.with_name(config_file.name + ".tmp")
+    temporary.write_text(
+        yaml.safe_dump(current, sort_keys=False, allow_unicode=False, default_flow_style=False),
+        encoding="utf-8",
+    )
+    temporary.replace(config_file)
+    return backup
 
 
 def prepare_runtime(root: Path) -> None:
@@ -211,6 +291,23 @@ def prepare_runtime(root: Path) -> None:
     sample_file = resources / "config.sample.yaml"
     if not config_file.exists() and sample_file.exists():
         create_initial_config(sample_file, config_file)
+    elif config_file.exists() and sample_file.exists():
+        try:
+            backup = migrate_legacy_state_directory(config_file)
+            if backup:
+                print(
+                    "Estado antigo copiado para a pasta interna do usuario. "
+                    f"A pasta anterior foi preservada. Backup: {backup}",
+                    flush=True,
+                )
+        except Exception as exc:
+            print(f"Aviso: nao foi possivel migrar a pasta de estado antiga: {exc}", flush=True)
+        try:
+            backup = update_existing_config_schema(sample_file, config_file)
+            if backup:
+                print(f"Config atualizado com novos campos. Backup: {backup}", flush=True)
+        except Exception as exc:
+            print(f"Aviso: nao foi possivel atualizar o schema do config.yaml: {exc}", flush=True)
 
 
 def open_browser_later(url: str) -> None:

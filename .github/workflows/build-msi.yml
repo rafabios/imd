@@ -80,7 +80,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pytest -q
-          python -m py_compile app_server.py music_downloader.py imd_launcher.py audio_analysis.py
+          python -m py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py google_sheets.py audio_analysis.py
 
       - name: Build portable app folder
         shell: pwsh
@@ -170,11 +170,13 @@ jobs:
       - name: Build EXE setup wizard
         shell: pwsh
         run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (!(Test-Path $iscc)) {
-            $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          }
-          if (!(Test-Path $iscc)) {
+          $iscc = @(
+            "${env:ProgramFiles}\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (!$iscc) {
             throw "Inno Setup Compiler nao encontrado."
           }
           & $iscc "packaging\IMDInstaller.iss"
@@ -229,8 +231,29 @@ jobs:
             throw "config.yaml nao foi criado pelo instalador EXE: $configPath"
           }
           $configText = Get-Content -Raw $configPath
-          if ($configText -notmatch [regex]::Escape(($env:USERPROFILE -replace "\\", "/") + "/Music/IMD")) {
+          $musicRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::MyMusic)
+          if ([string]::IsNullOrWhiteSpace($musicRoot)) {
+            $musicRoot = Join-Path $env:USERPROFILE "Music"
+          }
+          $expectedMusic = Join-Path $musicRoot "IMD"
+          $expectedState = Join-Path $installDir "state"
+          if ($configText -notmatch [regex]::Escape(($expectedMusic -replace "\\", "/"))) {
             throw "config.yaml nao contem a pasta de musicas esperada."
+          }
+          if ($configText -notmatch [regex]::Escape(($expectedState -replace "\\", "/"))) {
+            throw "config.yaml nao contem a pasta interna de estado esperada."
+          }
+          if ($configText -notmatch 'google_sheet_csv:\s*""') {
+            throw "config.yaml deveria iniciar sem URL de planilha."
+          }
+          if ($configText -notmatch 'candidate_limit:\s*6') {
+            throw "config.yaml nao foi criado a partir do modelo atual."
+          }
+          if (!(Test-Path $expectedMusic)) {
+            throw "Pasta de musicas nao foi criada: $expectedMusic"
+          }
+          if (!(Test-Path $expectedState)) {
+            throw "Pasta interna de estado nao foi criada: $expectedState"
           }
           $staleInternal = Join-Path $installDir "_internal\stale-from-old-build.txt"
           $staleTopLevelWeb = Join-Path $installDir "web\stale-from-old-build.txt"

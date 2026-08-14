@@ -62,6 +62,28 @@ def test_save_config_creates_backup(monkeypatch, tmp_path):
     assert len(list(backup_dir.glob("config_*.yaml"))) == 1
 
 
+def test_save_config_normalizes_regular_google_sheet_link(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    sample_path = tmp_path / "config.sample.yaml"
+    backup_dir = tmp_path / "backups"
+    shutil.copy2(app_server.CONFIG_FILE, config_path)
+    shutil.copy2(app_server.SAMPLE_CONFIG_FILE, sample_path)
+    monkeypatch.setattr(app_server, "CONFIG_FILE", config_path)
+    monkeypatch.setattr(app_server, "SAMPLE_CONFIG_FILE", sample_path)
+    monkeypatch.setattr(app_server, "BACKUP_DIR", backup_dir)
+
+    config = app_server.read_yaml_file(config_path)
+    config["source"]["google_sheet_csv"] = "https://docs.google.com/spreadsheets/d/demo/edit#gid=42"
+
+    result = app_server.save_config(config)
+    saved = app_server.read_yaml_file(config_path)
+
+    assert result["ok"] is True
+    assert saved["source"]["google_sheet_csv"] == (
+        "https://docs.google.com/spreadsheets/d/demo/export?format=csv&gid=42"
+    )
+
+
 def test_save_config_rejects_missing_fields(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     sample_path = tmp_path / "config.sample.yaml"
@@ -729,6 +751,26 @@ def test_read_sheet_dataframe_uses_requests_for_http(monkeypatch):
 
     assert calls == [("https://example.test/sheet.csv", 30, False, "IMDLocal/0.1")]
     assert df.iloc[0]["Artista"] == "A"
+
+
+def test_read_sheet_dataframe_normalizes_google_editor_url(monkeypatch):
+    class FakeResponse:
+        content = b"Artista,Musica\nA,T\n"
+        encoding = "utf-8"
+
+        def raise_for_status(self):
+            return None
+
+    calls = []
+    monkeypatch.setattr(
+        app_server.requests,
+        "get",
+        lambda url, **kwargs: calls.append(url) or FakeResponse(),
+    )
+
+    app_server.read_sheet_dataframe("https://docs.google.com/spreadsheets/d/demo/edit#gid=7")
+
+    assert calls == ["https://docs.google.com/spreadsheets/d/demo/export?format=csv&gid=7"]
 
 
 def test_parse_txt_import(monkeypatch, tmp_path):

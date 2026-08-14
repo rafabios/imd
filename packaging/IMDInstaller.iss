@@ -63,17 +63,63 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Abrir o IMD agora"; Flags: nowa
 [Code]
 var
   MusicDirPage: TInputDirWizardPage;
-  StateDirPage: TInputDirWizardPage;
-  SheetPage: TInputQueryWizardPage;
 
-function DefaultUserFolder(SubFolder: String): String;
+function ExpandEnvironmentPath(Value: String): String;
 var
+  StartPos: Integer;
+  EndOffset: Integer;
+  VariableName: String;
+  VariableValue: String;
+  Tail: String;
+begin
+  Result := Value;
+  while True do begin
+    StartPos := Pos('%', Result);
+    if StartPos = 0 then
+      Break;
+    Tail := Copy(Result, StartPos + 1, Length(Result));
+    EndOffset := Pos('%', Tail);
+    if EndOffset = 0 then
+      Break;
+    VariableName := Copy(Tail, 1, EndOffset - 1);
+    VariableValue := GetEnv(VariableName);
+    if VariableValue = '' then begin
+      Result := '';
+      Exit;
+    end;
+    Delete(Result, StartPos, EndOffset + 1);
+    Insert(VariableValue, Result, StartPos);
+  end;
+end;
+
+function DefaultMusicFolder(): String;
+var
+  MusicRoot: String;
   UserProfile: String;
 begin
-  UserProfile := GetEnv('USERPROFILE');
-  if UserProfile = '' then
-    UserProfile := ExpandConstant('{userdocs}');
-  Result := AddBackslash(UserProfile) + SubFolder;
+  MusicRoot := '';
+  RegQueryStringValue(
+    HKEY_CURRENT_USER,
+    'Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders',
+    'My Music',
+    MusicRoot
+  );
+  MusicRoot := ExpandEnvironmentPath(MusicRoot);
+
+  if MusicRoot = '' then begin
+    UserProfile := GetEnv('USERPROFILE');
+    if UserProfile <> '' then
+      MusicRoot := AddBackslash(UserProfile) + 'Music'
+    else
+      MusicRoot := AddBackslash(ExtractFileDir(ExpandConstant('{userdocs}'))) + 'Music';
+  end;
+
+  Result := AddBackslash(MusicRoot) + 'IMD';
+end;
+
+function DefaultStateFolder(): String;
+begin
+  Result := ExpandConstant('{localappdata}\IMD Insane Music Downloader\state');
 end;
 
 function YamlString(Value: String): String;
@@ -83,118 +129,39 @@ begin
   Result := Value;
 end;
 
-function NL(): String;
+procedure InitialConfig(MusicDir: String; StateDir: String; var ConfigLines: TArrayOfString);
+var
+  I: Integer;
+  SamplePath: String;
 begin
-  Result := Chr(13) + Chr(10);
-end;
+  SamplePath := ExpandConstant('{app}\config.sample.yaml');
+  if not LoadStringsFromFile(SamplePath, ConfigLines) then
+    RaiseException('Nao foi possivel ler o modelo de configuracao: ' + SamplePath);
 
-function InitialConfig(MusicDir: String; StateDir: String; SheetUrl: String): String;
-begin
-  Result :=
-    'source:' + NL() +
-    '  google_sheet_csv: "' + SheetUrl + '"' + NL() +
-    NL() +
-    'paths:' + NL() +
-    '  music_dir: "' + MusicDir + '"' + NL() +
-    '  state_dir: "' + StateDir + '"' + NL() +
-    NL() +
-    'execution:' + NL() +
-    '  reescan_list: false' + NL() +
-    '  dry_run: false' + NL() +
-    '  tagmusic: false' + NL() +
-    '  tag_force: false' + NL() +
-    '  only_row: null' + NL() +
-    '  only_url: null' + NL() +
-    '  log_level: "INFO"' + NL() +
-    NL() +
-    'network:' + NL() +
-    '  disable_ssl_verify: false' + NL() +
-    NL() +
-    'audio:' + NL() +
-    '  format: "mp3"' + NL() +
-    '  quality: 320' + NL() +
-    '  detect_bpm: false' + NL() +
-    '  bpm_seconds: 20' + NL() +
-    '  embed_metadata: false' + NL() +
-    '  embed_thumbnail: false' + NL() +
-    '  auto_tag_after_download: true' + NL() +
-    '  auto_tag_force: false' + NL() +
-    NL() +
-    'conversion:' + NL() +
-    '  enable: false' + NL() +
-    '  conversion_only: false' + NL() +
-    '  verbose: true' + NL() +
-    '  music_dir: "' + MusicDir + '"' + NL() +
-    '  source_format: "m4a"' + NL() +
-    '  destination_format: "mp3"' + NL() +
-    '  dry_run: true' + NL() +
-    '  delete_source: false' + NL() +
-    '  workers: 4' + NL() +
-    '  ffmpeg_threads: 1' + NL() +
-    NL() +
-    'spotify:' + NL() +
-    '  mode: "EMBED"' + NL() +
-    '  embed_timeout_seconds: 20' + NL() +
-    NL() +
-    'history:' + NL() +
-    '  mark_collection_done_with_failures: false' + NL() +
-    '  max_failures_to_mark_done: 2' + NL() +
-    NL() +
-    'ytdlp:' + NL() +
-    '  verbose: false' + NL() +
-    '  format: "bestaudio/best"' + NL() +
-    '  query_template: "{artist} {title} {term}"' + NL() +
-    '  search_results: 3' + NL() +
-    '  player_client: "android"' + NL() +
-    '  player_clients:' + NL() +
-    '    - "android"' + NL() +
-    '    - "web"' + NL() +
-    '    - "ios"' + NL() +
-    '  concurrent_fragments: 8' + NL() +
-    '  extractor_retries: 3' + NL() +
-    '  remote_components:' + NL() +
-    '    - "ejs:github"' + NL() +
-    '  cookies_from_browser: null' + NL() +
-    '  search_terms:' + NL() +
-    '    - "extended"' + NL() +
-    '    - "official audio"' + NL() +
-    '    - "official music video"' + NL() +
-    '    - "lyrics"' + NL() +
-    '    - "audio"' + NL();
+  for I := 0 to GetArrayLength(ConfigLines) - 1 do begin
+    StringChangeEx(
+      ConfigLines[I],
+      'C:/Users/SEU_USUARIO/AppData/Local/IMD Insane Music Downloader/state',
+      StateDir,
+      True
+    );
+    StringChangeEx(ConfigLines[I], 'C:/Users/SEU_USUARIO/Music/IMD-State', StateDir, True);
+    StringChangeEx(ConfigLines[I], 'C:/Users/SEU_USUARIO/Music/IMD', MusicDir, True);
+  end;
 end;
 
 procedure InitializeWizard;
 begin
   MusicDirPage := CreateInputDirPage(
     wpSelectDir,
-    'Pastas do IMD',
+    'Pasta de musicas',
     'Escolha onde as musicas serao salvas.',
-    'O instalador ja sugere uma pasta dentro do seu usuario do Windows. Voce pode manter assim e clicar em Avancar.',
+    'O instalador usa a pasta Musicas real do seu Windows, mesmo quando ela foi traduzida ou movida. Voce pode manter a sugestao e clicar em Avancar.',
     False,
     ''
   );
   MusicDirPage.Add('Pasta de musicas:');
-  MusicDirPage.Values[0] := DefaultUserFolder('Music\IMD');
-
-  StateDirPage := CreateInputDirPage(
-    MusicDirPage.ID,
-    'Arquivos de estado',
-    'Escolha onde o IMD vai guardar historico, erros e cache.',
-    'Recomendado: deixar separado da pasta de instalacao, dentro do seu usuario do Windows.',
-    False,
-    ''
-  );
-  StateDirPage.Add('Pasta de estado:');
-  StateDirPage.Values[0] := DefaultUserFolder('Music\IMD-State');
-
-  SheetPage := CreateInputQueryPage(
-    StateDirPage.ID,
-    'Planilha do Google',
-    'Informe a URL CSV da sua planilha.',
-    'Use o link de exportacao CSV do Google Sheets. Se preferir configurar depois pelo painel, deixe o valor sugerido.'
-  );
-  SheetPage.Add('URL CSV da planilha:', False);
-  SheetPage.Values[0] := 'https://docs.google.com/spreadsheets/d/SEU_ID/export?format=csv&gid=0';
+  MusicDirPage.Values[0] := DefaultMusicFolder();
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -204,7 +171,7 @@ var
   MusicDirRaw: String;
   StateDir: String;
   StateDirRaw: String;
-  SheetUrl: String;
+  ConfigLines: TArrayOfString;
 begin
   if CurStep <> ssPostInstall then
     Exit;
@@ -217,14 +184,11 @@ begin
   end;
 
   if WizardSilent then begin
-    MusicDirRaw := DefaultUserFolder('Music\IMD');
-    StateDirRaw := DefaultUserFolder('Music\IMD-State');
-    SheetUrl := YamlString('https://docs.google.com/spreadsheets/d/SEU_ID/export?format=csv&gid=0');
+    MusicDirRaw := DefaultMusicFolder();
   end else begin
     MusicDirRaw := MusicDirPage.Values[0];
-    StateDirRaw := StateDirPage.Values[0];
-    SheetUrl := YamlString(SheetPage.Values[0]);
   end;
+  StateDirRaw := DefaultStateFolder();
 
   MusicDir := YamlString(MusicDirRaw);
   StateDir := YamlString(StateDirRaw);
@@ -232,6 +196,8 @@ begin
   ForceDirectories(MusicDirRaw);
   ForceDirectories(StateDirRaw);
 
-  SaveStringToFile(ConfigPath, InitialConfig(MusicDir, StateDir, SheetUrl), False);
+  InitialConfig(MusicDir, StateDir, ConfigLines);
+  if not SaveStringsToUTF8FileWithoutBOM(ConfigPath, ConfigLines, False) then
+    RaiseException('Nao foi possivel criar o config.yaml em: ' + ConfigPath);
 end;
 

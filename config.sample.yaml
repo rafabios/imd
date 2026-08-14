@@ -1,11 +1,11 @@
 # Copie este arquivo para config.yaml e ajuste para sua maquina.
 
 source:
-  google_sheet_csv: "https://docs.google.com/spreadsheets/d/SEU_ID/export?format=csv&gid=0"
+  google_sheet_csv: ""
 
 paths:
   music_dir: "C:/Users/SEU_USUARIO/Music/IMD"
-  state_dir: "C:/Users/SEU_USUARIO/Music/IMD-State"
+  state_dir: "C:/Users/SEU_USUARIO/AppData/Local/IMD Insane Music Downloader/state"
 
 execution:
   reescan_list: false
@@ -54,6 +54,15 @@ ytdlp:
   format: "bestaudio/best"
   query_template: "{artist} {title} {term}"
   search_results: 3
+  search_query_limit: 3 # consultas diferentes feitas por faixa
+  candidate_limit: 6 # candidatos comparados antes do download
+  download_attempts: 3 # alternativas tentadas se um candidato falhar
+  prefer_official: true # prioriza canal oficial, Topic e VEVO
+  min_source_bitrate_kbps: 120 # abaixo disso tenta primeiro outra fonte disponivel
+  spectral_check: true # tenta outra fonte quando encontra corte espectral rigido
+  spectral_cutoff_hz: 17000 # corte abaixo desta frequencia pode ser suspeito
+  spectral_drop_db: 20 # queda minima entre bandas para considerar corte rigido
+  spectral_seconds: 60 # trecho inicial usado na verificacao rapida
   player_client: "android"
   player_clients:
     - "android"
@@ -65,8 +74,8 @@ ytdlp:
     - "ejs:github"
   cookies_from_browser: null # edge, chrome, firefox, off ou null
   search_terms:
-    - "extended"
     - "official audio"
     - "official music video"
-    - "lyrics"
     - "audio"
+    - "extended"
+    - "lyrics"

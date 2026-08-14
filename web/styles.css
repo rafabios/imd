@@ -573,6 +573,34 @@ button:disabled {
   min-height: 22px;
 }
 
+.config-field.google-sheet-field {
+  grid-column: 1 / -1;
+}
+
+.config-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.config-link-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 0 15px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.config-field-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .save-status {
   min-height: 22px;
   margin-bottom: 14px;

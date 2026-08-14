@@ -13,6 +13,38 @@ def test_setup_preserves_existing_config_and_desktop_icon_is_default():
     assert "unchecked" not in desktop_task
 
 
+def test_setup_only_asks_for_music_and_uses_internal_state_folder():
+    source = (ROOT / "packaging" / "IMDInstaller.iss").read_text(encoding="utf-8")
+
+    assert "SheetPage" not in source
+    assert "StateDirPage" not in source
+    assert "CreateInputQueryPage" not in source
+    assert "URL CSV da planilha" not in source
+    assert "DefaultMusicFolder" in source
+    assert "User Shell Folders" in source
+    assert "'My Music'" in source
+    assert "{localappdata}\\IMD Insane Music Downloader\\state" in source
+    assert "LoadStringsFromFile" in source
+    assert "SaveStringsToUTF8FileWithoutBOM" in source
+    assert "config.sample.yaml" in source
+
+
+def test_setup_smoke_checks_known_music_folder_hidden_state_and_blank_sheet():
+    source = (ROOT / ".github" / "workflows" / "build-msi.yml").read_text(encoding="utf-8")
+
+    assert "[Environment+SpecialFolder]::MyMusic" in source
+    assert 'Join-Path $installDir "state"' in source
+    assert 'google_sheet_csv:\\s*""' in source
+    assert "candidate_limit:\\s*6" in source
+
+
+def test_windows_workflow_accepts_inno_setup_6_or_7():
+    source = (ROOT / ".github" / "workflows" / "build-msi.yml").read_text(encoding="utf-8")
+
+    assert "Inno Setup 7\\ISCC.exe" in source
+    assert "Inno Setup 6\\ISCC.exe" in source
+
+
 def test_packaged_ui_smoke_uses_disposable_copy_and_checks_bundle_cleanliness():
     source = (ROOT / ".github" / "workflows" / "build-msi.yml").read_text(encoding="utf-8")
 
@@ -29,6 +61,16 @@ def test_web_rows_do_not_render_api_values_with_inner_html():
     assert "tr.innerHTML" not in source
     assert "item.innerHTML" not in source
     assert "appendSpotifyCell" in source
+
+
+def test_web_configuration_creates_google_sheet_and_hides_internal_state():
+    script = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+
+    assert 'createLink.href = "https://sheets.new"' in script
+    assert '"paths.state_dir"' in script
+    assert "hiddenConfigFields.has(path)" in script
+    assert "JSON.parse(JSON.stringify(currentConfig))" in script
+    assert "Qualquer pessoa com o link" in script
 
 
 def test_web_exposes_tagging_shortcut_and_flexible_row_selection():
@@ -70,8 +112,8 @@ def test_workflows_compile_audio_analysis_module():
     windows = (ROOT / ".github" / "workflows" / "build-msi.yml").read_text(encoding="utf-8")
     macos = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
 
-    assert "py_compile app_server.py music_downloader.py imd_launcher.py audio_analysis.py" in windows
-    assert "py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py audio_analysis.py" in macos
+    assert "py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py google_sheets.py audio_analysis.py" in windows
+    assert "py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py google_sheets.py audio_analysis.py" in macos
 
 
 def test_docker_entrypoint_exists():

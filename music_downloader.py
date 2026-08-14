@@ -10,6 +10,7 @@ import html
 import argparse
 import hashlib
 import unicodedata
+from difflib import SequenceMatcher
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -24,14 +25,18 @@ import yt_dlp
 import certifi
 from tqdm import tqdm
 
+from google_sheets import normalize_google_sheet_csv_url
 from row_selection import parse_row_selection
 
 try:
-    import librosa
     import numpy as np
 except Exception:
-    librosa = None
     np = None
+
+try:
+    import librosa
+except Exception:
+    librosa = None
 
 try:
     from mutagen.mp4 import MP4
@@ -96,6 +101,14 @@ def config_list(path: str, default: Optional[List[str]] = None) -> List[str]:
         return [str(x).strip() for x in value if str(x).strip()]
     return [x.strip() for x in str(value).split(",") if x.strip()]
 
+
+def _finite_float(value: Any) -> Optional[float]:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
 # =========================
 # Config
 # =========================
@@ -133,12 +146,21 @@ YTDLP_COOKIES_FROM_BROWSER = config_str("ytdlp.cookies_from_browser", "")
 YTDLP_SEARCH_TERMS = config_list("ytdlp.search_terms", ["extended"])
 YTDLP_QUERY_TEMPLATE = config_str("ytdlp.query_template", "{artist} {title} {term}")
 YTDLP_SEARCH_RESULTS = config_int("ytdlp.search_results", 3)
+YTDLP_SEARCH_QUERY_LIMIT = config_int("ytdlp.search_query_limit", 3)
+YTDLP_CANDIDATE_LIMIT = config_int("ytdlp.candidate_limit", 6)
+YTDLP_DOWNLOAD_ATTEMPTS = config_int("ytdlp.download_attempts", 3)
+YTDLP_PREFER_OFFICIAL = config_bool("ytdlp.prefer_official", True)
+YTDLP_MIN_SOURCE_BITRATE_KBPS = config_int("ytdlp.min_source_bitrate_kbps", 120)
+YTDLP_SPECTRAL_CHECK = config_bool("ytdlp.spectral_check", True)
+YTDLP_SPECTRAL_CUTOFF_HZ = config_int("ytdlp.spectral_cutoff_hz", 17000)
+YTDLP_SPECTRAL_DROP_DB = config_int("ytdlp.spectral_drop_db", 20)
+YTDLP_SPECTRAL_SECONDS = config_int("ytdlp.spectral_seconds", 60)
 YTDLP_EXTRACTOR_RETRIES = config_int("ytdlp.extractor_retries", 3)
 
 SPOTIFY_MODE = config_str("spotify.mode", "EMBED").upper()
 SPOTIFY_EMBED_TIMEOUT_SECONDS = config_int("spotify.embed_timeout_seconds", 20)
 
-GOOGLE_SHEET_CSV = config_str("source.google_sheet_csv", "")
+GOOGLE_SHEET_CSV = normalize_google_sheet_csv_url(config_str("source.google_sheet_csv", ""))
 LOG_LEVEL = config_str("execution.log_level", "INFO").upper()
 DISABLE_SSL_VERIFY = config_bool("network.disable_ssl_verify", False)
 MARK_COLLECTION_DONE_WITH_FAILURES = config_bool("history.mark_collection_done_with_failures", False)
@@ -184,6 +206,20 @@ def validate_config() -> None:
         errors.append("ytdlp.extractor_retries precisa ser maior ou igual a 0.")
     if YTDLP_SEARCH_RESULTS < 1:
         errors.append("ytdlp.search_results precisa ser maior ou igual a 1.")
+    if YTDLP_SEARCH_QUERY_LIMIT < 1:
+        errors.append("ytdlp.search_query_limit precisa ser maior ou igual a 1.")
+    if YTDLP_CANDIDATE_LIMIT < 1:
+        errors.append("ytdlp.candidate_limit precisa ser maior ou igual a 1.")
+    if YTDLP_DOWNLOAD_ATTEMPTS < 1:
+        errors.append("ytdlp.download_attempts precisa ser maior ou igual a 1.")
+    if YTDLP_MIN_SOURCE_BITRATE_KBPS < 1:
+        errors.append("ytdlp.min_source_bitrate_kbps precisa ser maior ou igual a 1.")
+    if YTDLP_SPECTRAL_CUTOFF_HZ < 8000:
+        errors.append("ytdlp.spectral_cutoff_hz precisa ser maior ou igual a 8000.")
+    if YTDLP_SPECTRAL_DROP_DB < 1:
+        errors.append("ytdlp.spectral_drop_db precisa ser maior ou igual a 1.")
+    if YTDLP_SPECTRAL_SECONDS < 5:
+        errors.append("ytdlp.spectral_seconds precisa ser maior ou igual a 5.")
     supported_conversion_source_formats = {"mp3", "m4a", "mp4", "flac", "wav", "ogg", "opus", "aac"}
     supported_conversion_destination_formats = {"mp3", "m4a", "flac", "wav", "ogg", "opus", "aac"}
     if CONVERSION_SOURCE_FORMAT not in supported_conversion_source_formats:
@@ -398,6 +434,50 @@ def bundled_ffmpeg_dir() -> Optional[str]:
         return str(Path(ffmpeg).parent)
     return None
 
+
+def _youtube_format_description(audio_format: Dict[str, Any]) -> str:
+    if not audio_format:
+        return "fonte de audio nao informada"
+    parts = []
+    format_id = str(audio_format.get("format_id") or "").strip()
+    codec = str(audio_format.get("acodec") or "").strip()
+    extension = str(audio_format.get("ext") or "").strip()
+    abr = _finite_float(audio_format.get("abr"))
+    tbr = _finite_float(audio_format.get("tbr"))
+    bitrate = abr if abr is not None else (tbr if str(audio_format.get("vcodec") or "none") == "none" else None)
+    sample_rate = _finite_float(audio_format.get("asr"))
+    if format_id:
+        parts.append(f"formato {format_id}")
+    if codec and codec != "none":
+        parts.append(codec)
+    elif extension:
+        parts.append(extension)
+    if bitrate is not None:
+        parts.append(f"~{bitrate:.0f} kbps")
+    if sample_rate is not None:
+        parts.append(f"{sample_rate / 1000:g} kHz")
+    return " | ".join(parts) or "fonte de audio nao informada"
+
+
+def youtube_source_progress_hook(event: Dict[str, Any]) -> None:
+    if str(event.get("status") or "") != "finished":
+        return
+    info = event.get("info_dict") if isinstance(event.get("info_dict"), dict) else {}
+    description = _youtube_format_description(info)
+    log(f"Fonte baixada do YouTube: {description}")
+    if AUDIO_FORMAT != "mp3":
+        return
+    source_bitrate = _finite_float(info.get("abr"))
+    if source_bitrate is None and str(info.get("vcodec") or "none") == "none":
+        source_bitrate = _finite_float(info.get("tbr"))
+    target_bitrate = _finite_float(QUALITY_AUDIO)
+    if source_bitrate is not None and target_bitrate is not None and target_bitrate > source_bitrate:
+        log(
+            f"Conversao: fonte ~{source_bitrate:.0f} kbps -> MP3 {target_bitrate:.0f} kbps. "
+            "A conversao preserva compatibilidade, mas nao cria qualidade ausente na fonte."
+        )
+
+
 def yt_dlp_opts(folder: str, base: str, use_browser_cookies: bool = True) -> dict:
     outtmpl = os.path.join(folder, base + ".%(ext)s")
     postprocessors = []
@@ -415,6 +495,7 @@ def yt_dlp_opts(folder: str, base: str, use_browser_cookies: bool = True) -> dic
         "quiet": not YTDLP_VERBOSE,
         "no_warnings": not YTDLP_VERBOSE,
         "noplaylist": True,
+        "extract_flat": "in_playlist",
         "ignoreerrors": True,
         "retries": 3,
         "fragment_retries": 3,
@@ -422,6 +503,7 @@ def yt_dlp_opts(folder: str, base: str, use_browser_cookies: bool = True) -> dic
         "concurrent_fragment_downloads": YTDLP_CONCURRENT_FRAGMENTS,
         "extractor_args": {"youtube": {"player_client": YTDLP_PLAYER_CLIENTS or [YTDLP_PLAYER_CLIENT]}},
         "postprocessors": postprocessors,
+        "progress_hooks": [youtube_source_progress_hook],
         "embed_metadata": EMBED_METADATA,
         "add_metadata": EMBED_METADATA,
         "embed_thumbnail": EMBED_THUMBNAIL,
@@ -479,9 +561,24 @@ def convert_existing_to_mp3(source_path: str) -> Optional[str]:
 
 def build_search_queries(artist: str, title: str) -> List[str]:
     terms = YTDLP_SEARCH_TERMS or [""]
+    title_key = normalize_loose(title)
+    default_priority = {
+        "official audio": 0,
+        "official music video": 1,
+        "audio": 2,
+        "extended": 3,
+        "lyrics": 4,
+    }
+    terms = sorted(
+        enumerate(terms),
+        key=lambda pair: (
+            -1 if normalize_loose(pair[1]) and normalize_loose(pair[1]) in title_key else default_priority.get(normalize_loose(pair[1]), 10),
+            pair[0],
+        ),
+    )
     queries = []
     seen = set()
-    for term in terms:
+    for _, term in terms[:max(1, YTDLP_SEARCH_QUERY_LIMIT)]:
         query = YTDLP_QUERY_TEMPLATE.format(artist=artist, title=title, term=term).strip()
         query = re.sub(r"\s+", " ", query)
         key = normalize_loose(query)
@@ -490,16 +587,256 @@ def build_search_queries(artist: str, title: str) -> List[str]:
             seen.add(key)
     return queries
 
+
+def _youtube_entry_url(entry: Dict[str, Any]) -> str:
+    return str(entry.get("webpage_url") or entry.get("original_url") or entry.get("url") or "").strip()
+
+
+def _youtube_audio_formats(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+    formats = [item for item in (entry.get("formats") or []) if isinstance(item, dict)]
+    audio_only = [
+        item for item in formats
+        if str(item.get("acodec") or "none") != "none" and str(item.get("vcodec") or "none") == "none"
+    ]
+    if audio_only:
+        return audio_only
+    return [item for item in formats if str(item.get("acodec") or "none") != "none"]
+
+
+def best_youtube_audio_format(entry: Dict[str, Any]) -> Dict[str, Any]:
+    formats = _youtube_audio_formats(entry)
+    if not formats:
+        return {}
+
+    def quality_key(item: Dict[str, Any]) -> Tuple[float, float, float, int]:
+        abr = _finite_float(item.get("abr"))
+        tbr = _finite_float(item.get("tbr"))
+        sample_rate = _finite_float(item.get("asr"))
+        bitrate = abr if abr is not None else (tbr if str(item.get("vcodec") or "none") == "none" else 0.0)
+        return (
+            _finite_float(item.get("quality")) or 0.0,
+            bitrate or 0.0,
+            sample_rate or 0.0,
+            formats.index(item),
+        )
+
+    return max(formats, key=quality_key)
+
+
+def youtube_audio_bitrate_kbps(entry: Dict[str, Any]) -> Optional[float]:
+    audio_format = best_youtube_audio_format(entry)
+    abr = _finite_float(audio_format.get("abr"))
+    if abr is not None:
+        return abr
+    if str(audio_format.get("vcodec") or "none") == "none":
+        return _finite_float(audio_format.get("tbr"))
+    return None
+
+
+def youtube_source_quality_tier(entry: Dict[str, Any]) -> int:
+    bitrate = youtube_audio_bitrate_kbps(entry)
+    if bitrate is None:
+        return 1
+    return 2 if bitrate >= max(1, YTDLP_MIN_SOURCE_BITRATE_KBPS) else 0
+
+
+def youtube_source_description(entry: Dict[str, Any]) -> str:
+    audio_format = best_youtube_audio_format(entry)
+    return _youtube_format_description(audio_format)
+
+
+def evaluate_spectral_profile(frequencies: Any, peak_magnitude: Any) -> Dict[str, Any]:
+    if np is None:
+        return {"available": False, "suspicious": False, "reason": "numpy indisponivel"}
+    frequency_values = np.asarray(frequencies, dtype=float)
+    magnitude_values = np.asarray(peak_magnitude, dtype=float)
+    valid = np.isfinite(frequency_values) & np.isfinite(magnitude_values) & (magnitude_values >= 0)
+    frequency_values = frequency_values[valid]
+    magnitude_values = magnitude_values[valid]
+    if frequency_values.size < 8 or magnitude_values.size < 8:
+        return {"available": False, "suspicious": False, "reason": "amostra espectral insuficiente"}
+    reference = float(np.max(magnitude_values))
+    if not math.isfinite(reference) or reference <= 1e-12:
+        return {"available": False, "suspicious": False, "reason": "audio silencioso"}
+
+    def band_level_db(start_hz: float, end_hz: float) -> Optional[float]:
+        mask = (frequency_values >= start_hz) & (frequency_values < end_hz)
+        if not np.any(mask):
+            return None
+        rms = float(np.sqrt(np.mean(np.square(magnitude_values[mask]))))
+        return 20.0 * math.log10(max(rms, reference * 1e-12) / reference)
+
+    band_width = 200
+    band_centers = []
+    band_levels = []
+    nyquist = float(np.max(frequency_values))
+    start_hz = 0
+    while start_hz < nyquist:
+        level = band_level_db(start_hz, min(nyquist + 1, start_hz + band_width))
+        if level is not None:
+            band_centers.append(start_hz + band_width / 2)
+            band_levels.append(level)
+        start_hz += band_width
+    active_bands = [center for center, level in zip(band_centers, band_levels) if level >= -60.0]
+    cutoff_hz = max(active_bands) if active_bands else 0.0
+    lower_level = band_level_db(14000, 16000)
+    upper_level = band_level_db(17500, min(20500, nyquist + 1))
+    drop_db = None
+    if lower_level is not None and upper_level is not None:
+        drop_db = upper_level - lower_level
+    suspicious = bool(
+        cutoff_hz < YTDLP_SPECTRAL_CUTOFF_HZ
+        and lower_level is not None
+        and lower_level > -55.0
+        and drop_db is not None
+        and drop_db <= -abs(YTDLP_SPECTRAL_DROP_DB)
+    )
+    return {
+        "available": True,
+        "suspicious": suspicious,
+        "cutoff_hz": round(cutoff_hz),
+        "lower_band_db": round(lower_level, 1) if lower_level is not None else None,
+        "upper_band_db": round(upper_level, 1) if upper_level is not None else None,
+        "drop_db": round(drop_db, 1) if drop_db is not None else None,
+    }
+
+
+def inspect_downloaded_spectrum(path: str) -> Dict[str, Any]:
+    if not YTDLP_SPECTRAL_CHECK:
+        return {"available": False, "suspicious": False, "reason": "verificacao desativada"}
+    if np is None:
+        return {"available": False, "suspicious": False, "reason": "numpy indisponivel"}
+    try:
+        ffmpeg_dir = bundled_ffmpeg_dir()
+        executable_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+        ffmpeg = str(Path(ffmpeg_dir) / executable_name) if ffmpeg_dir else shutil.which("ffmpeg")
+        if not ffmpeg:
+            return {"available": False, "suspicious": False, "reason": "ffmpeg indisponivel"}
+        sample_rate = 44100
+        completed = subprocess.run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(path),
+                "-t",
+                str(max(5, YTDLP_SPECTRAL_SECONDS)),
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                str(sample_rate),
+                "-f",
+                "f32le",
+                "pipe:1",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=max(90, YTDLP_SPECTRAL_SECONDS * 3),
+            check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        if completed.returncode != 0:
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            return {"available": False, "suspicious": False, "reason": detail[-300:] or "ffmpeg falhou"}
+        samples = np.frombuffer(completed.stdout, dtype="<f4")
+        if samples is None or len(samples) < sample_rate:
+            return {"available": False, "suspicious": False, "reason": "audio curto demais"}
+        n_fft = 4096
+        hop_length = 2048
+        frames = np.lib.stride_tricks.sliding_window_view(samples, n_fft)[::hop_length]
+        if frames.size == 0:
+            return {"available": False, "suspicious": False, "reason": "espectro vazio"}
+        window = np.hanning(n_fft)
+        magnitude = np.abs(np.fft.rfft(frames * window, axis=1))
+        peak_magnitude = np.percentile(magnitude, 90, axis=0)
+        frequencies = np.fft.rfftfreq(n_fft, d=1.0 / sample_rate)
+        return evaluate_spectral_profile(frequencies, peak_magnitude)
+    except Exception as exc:
+        return {"available": False, "suspicious": False, "reason": str(exc)}
+
+
+def spectral_profile_score(profile: Dict[str, Any]) -> float:
+    cutoff = _finite_float(profile.get("cutoff_hz")) or 0.0
+    drop = _finite_float(profile.get("drop_db"))
+    return cutoff + (drop if drop is not None else -100.0)
+
+
+def _best_word_similarity(target_word: str, candidate_words: List[str]) -> float:
+    if not target_word or not candidate_words:
+        return 0.0
+    return max(SequenceMatcher(None, target_word, word).ratio() for word in candidate_words)
+
+
+def _contains_normalized_phrase(text: str, phrase: str) -> bool:
+    pattern = r"\b" + r"\s+".join(re.escape(part) for part in phrase.split()) + r"\b"
+    return re.search(pattern, text) is not None
+
+
+def _youtube_variant_penalty(candidate_text: str, requested_title: str) -> int:
+    requested = normalize_loose(requested_title)
+    markers = {
+        "karaoke": 100,
+        "cover": 80,
+        "nightcore": 100,
+        "slowed": 100,
+        "sped up": 100,
+        "bass boosted": 80,
+        "8d": 80,
+        "live": 45,
+        "extended": 45,
+        "remix": 35,
+        "lyrics": 15,
+    }
+    return sum(
+        value
+        for marker, value in markers.items()
+        if _contains_normalized_phrase(candidate_text, marker) and not _contains_normalized_phrase(requested, marker)
+    )
+
+
+def _youtube_official_score(entry: Dict[str, Any], artist: str) -> int:
+    if not YTDLP_PREFER_OFFICIAL:
+        return 0
+    title = normalize_loose(entry.get("title") or "")
+    channel = normalize_loose(" ".join(str(entry.get(key) or "") for key in ("uploader", "channel", "uploader_id", "channel_id")))
+    artist_key = normalize_loose(artist)
+    score = 0
+    if title.find("official audio") >= 0:
+        score += 60
+    elif title.find("official music video") >= 0 or title.find("official video") >= 0:
+        score += 45
+    elif "official" in title:
+        score += 25
+    if channel.endswith(" topic") or " topic " in f" {channel} ":
+        score += 80
+    if "vevo" in channel:
+        score += 35
+    if entry.get("channel_is_verified") or entry.get("uploader_is_verified"):
+        score += 50
+    if artist_key and channel and (artist_key in channel or channel in artist_key):
+        score += 25
+    return score
+
+
 def score_youtube_entry(entry: Dict[str, Any], artist: str, title: str) -> int:
+    candidate_title = normalize_loose(entry.get("title") or "")
     text = normalize_loose(" ".join(str(entry.get(k) or "") for k in ("title", "uploader", "channel")))
     artist_key = normalize_loose(artist)
     title_key = normalize_loose(title)
     score = 0
-    if title_key and title_key in text:
+    if title_key and title_key in candidate_title:
         score += 100
     for word in title_key.split():
-        if len(word) > 2 and word in text:
+        if len(word) > 2 and word in candidate_title:
             score += 8
+    if title_key and title_key not in candidate_title:
+        candidate_words = [word for word in candidate_title.split() if len(word) > 2]
+        similarities = [_best_word_similarity(word, candidate_words) for word in title_key.split() if len(word) > 2]
+        if similarities and min(similarities) >= 0.72:
+            score += round(80 * sum(similarities) / len(similarities))
     first_artist = normalize_loose(re.split(r",|&| feat\\.? | ft\\.? ", artist, maxsplit=1, flags=re.I)[0])
     if first_artist and first_artist in text:
         score += 40
@@ -509,16 +846,90 @@ def score_youtube_entry(entry: Dict[str, Any], artist: str, title: str) -> int:
     duration = entry.get("duration")
     if isinstance(duration, (int, float)) and 90 <= duration <= 900:
         score += 10
+    score += _youtube_official_score(entry, artist)
+    score -= _youtube_variant_penalty(text, title)
+    bitrate = youtube_audio_bitrate_kbps(entry)
+    if bitrate is not None:
+        score += min(35, round(bitrate / 5))
     return score
 
-def choose_youtube_url(ydl: yt_dlp.YoutubeDL, query: str, artist: str, title: str) -> Optional[str]:
+
+def choose_youtube_candidates(
+    ydl: yt_dlp.YoutubeDL,
+    queries: List[str],
+    artist: str,
+    title: str,
+    inspect_formats: bool = False,
+) -> List[Dict[str, Any]]:
     search_count = max(1, YTDLP_SEARCH_RESULTS)
-    info = ydl.extract_info(f"ytsearch{search_count}:{query}", download=False)
-    entries = [x for x in (info or {}).get("entries") or [] if x]
+    candidates: Dict[str, Dict[str, Any]] = {}
+    for query in queries:
+        try:
+            info = ydl.extract_info(f"ytsearch{search_count}:{query}", download=False)
+        except Exception as exc:
+            debug(f"Falha na consulta do YouTube '{query}': {exc}")
+            continue
+        for raw_entry in (info or {}).get("entries") or []:
+            if not isinstance(raw_entry, dict):
+                continue
+            url = _youtube_entry_url(raw_entry)
+            if not url:
+                continue
+            current = candidates.get(url)
+            if current is None or len(raw_entry.get("formats") or []) > len(current.get("formats") or []):
+                candidates[url] = dict(raw_entry)
+
+    ranked = list(candidates.values())
+    for entry in ranked:
+        entry["_imd_score"] = score_youtube_entry(entry, artist, title)
+    ranked.sort(
+        key=lambda item: (
+            int(item.get("_imd_score") or 0),
+            int(item.get("view_count") or 0),
+        ),
+        reverse=True,
+    )
+    ranked = ranked[:max(1, YTDLP_CANDIDATE_LIMIT)]
+
+    if inspect_formats:
+        hydrated: List[Dict[str, Any]] = []
+        for entry in ranked:
+            if _youtube_audio_formats(entry):
+                hydrated.append(entry)
+                continue
+            url = _youtube_entry_url(entry)
+            try:
+                full_entry = ydl.extract_info(url, download=False) if url else None
+            except Exception as exc:
+                debug(f"Falha ao inspecionar formatos de {url}: {exc}")
+                full_entry = None
+            if isinstance(full_entry, dict):
+                merged = dict(entry)
+                merged.update(full_entry)
+                hydrated.append(merged)
+            else:
+                hydrated.append(entry)
+        ranked = hydrated
+
+    for entry in ranked:
+        entry["_imd_score"] = score_youtube_entry(entry, artist, title)
+    ranked.sort(
+        key=lambda item: (
+            youtube_source_quality_tier(item),
+            int(item.get("_imd_score") or 0),
+            youtube_audio_bitrate_kbps(item) or 0.0,
+            int(item.get("view_count") or 0),
+        ),
+        reverse=True,
+    )
+    return ranked
+
+
+def choose_youtube_url(ydl: yt_dlp.YoutubeDL, query: str, artist: str, title: str) -> Optional[str]:
+    entries = choose_youtube_candidates(ydl, [query], artist, title)
     if not entries:
         return None
-    best = max(entries, key=lambda item: score_youtube_entry(item, artist, title))
-    return best.get("webpage_url") or best.get("url")
+    return _youtube_entry_url(entries[0])
 
 def run_youtube_track(
     artist: str,
@@ -560,40 +971,131 @@ def run_youtube_track(
 
     final_path = None
     last_error = ""
-    for query in queries:
-        cookie_attempts = [not YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN]
-        if cookie_attempts[0] and YTDLP_COOKIES_FROM_BROWSER and YTDLP_COOKIES_FROM_BROWSER.lower() not in ("0", "none", "off", "false", "no"):
-            cookie_attempts.append(False)
+    selected_url = ""
+    quality_fallback: Optional[Dict[str, Any]] = None
+    quality_token = hashlib.sha1(f"{tid}|{datetime.now().isoformat()}".encode("utf-8")).hexdigest()[:12]
 
-        for use_browser_cookies in cookie_attempts:
-            try:
-                if not use_browser_cookies:
-                    log(f"Tentando sem cookies do navegador: {query}")
-                with yt_dlp.YoutubeDL(yt_dlp_opts(folder, base, use_browser_cookies=use_browser_cookies)) as ydl:
-                    selected_url = choose_youtube_url(ydl, query, artist, title)
-                    if not selected_url:
-                        last_error = "no youtube search results"
-                        continue
-                    log(f"YouTube selecionado: {selected_url}")
-                    ydl.download([selected_url])
+    def remember_quality_fallback(path: str, profile: Dict[str, Any], url: str, position: int) -> None:
+        nonlocal quality_fallback
+        source = Path(path)
+        target = source
+        stash = Path(folder) / f".imd-quality-{quality_token}-{position}{source.suffix}"
+        new_score = spectral_profile_score(profile)
+        if quality_fallback and new_score <= float(quality_fallback["score"]):
+            source.unlink(missing_ok=True)
+            return
+        if quality_fallback:
+            Path(str(quality_fallback["stash"])).unlink(missing_ok=True)
+        os.replace(source, stash)
+        quality_fallback = {
+            "stash": str(stash),
+            "target": str(target),
+            "profile": profile,
+            "score": new_score,
+            "url": url,
+        }
 
-                    final_path = find_downloaded_file(folder, base, preferred_ext=preferred_ext)
-                    if AUDIO_FORMAT == "mp3" and (not final_path or Path(final_path).suffix.lower() != ".mp3"):
-                        downloaded_path = find_downloaded_file(folder, base)
-                        if downloaded_path:
-                            final_path = convert_existing_to_mp3(downloaded_path)
-                    if final_path and os.path.exists(final_path):
-                        break
-                    last_error = "file not found after download"
-            except Exception as e:
-                last_error = str(e)
-                log_error(f"[YOUTUBE] Exception: {query} :: {e}")
-                if use_browser_cookies and "cookie" in last_error.lower():
-                    YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN = True
-                    log("Cookies do navegador falharam; desativando cookies para o restante desta execucao.")
+    cookie_attempts = [not YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN]
+    if cookie_attempts[0] and YTDLP_COOKIES_FROM_BROWSER and YTDLP_COOKIES_FROM_BROWSER.lower() not in ("0", "none", "off", "false", "no"):
+        cookie_attempts.append(False)
 
-        if final_path and os.path.exists(final_path):
+    for use_browser_cookies in cookie_attempts:
+        try:
+            if not use_browser_cookies:
+                log("Tentando busca e download sem cookies do navegador.")
+            with yt_dlp.YoutubeDL(yt_dlp_opts(folder, base, use_browser_cookies=use_browser_cookies)) as ydl:
+                candidates = choose_youtube_candidates(ydl, queries, artist, title, inspect_formats=True)
+                if not candidates:
+                    last_error = "no youtube search results"
+                    continue
+                attempt_limit = min(len(candidates), max(1, YTDLP_DOWNLOAD_ATTEMPTS))
+                log(f"YouTube: {len(candidates)} candidato(s) comparado(s); ate {attempt_limit} tentativa(s) de download.")
+                for position, candidate in enumerate(candidates[:attempt_limit], start=1):
+                    selected_url = _youtube_entry_url(candidate)
+                    candidate_title = str(candidate.get("title") or "sem titulo").strip()
+                    candidate_channel = str(candidate.get("channel") or candidate.get("uploader") or "canal desconhecido").strip()
+                    source_description = youtube_source_description(candidate)
+                    score = int(candidate.get("_imd_score") or 0)
+                    log(
+                        f"YouTube candidato {position}/{attempt_limit}: {candidate_title} | "
+                        f"canal={candidate_channel} | {source_description} | score={score}"
+                    )
+                    source_bitrate = youtube_audio_bitrate_kbps(candidate)
+                    if source_bitrate is not None and source_bitrate < max(1, YTDLP_MIN_SOURCE_BITRATE_KBPS):
+                        log(
+                            f"Aviso: fonte estimada em ~{source_bitrate:.0f} kbps, abaixo do minimo preferido "
+                            f"de {YTDLP_MIN_SOURCE_BITRATE_KBPS} kbps."
+                        )
+                    try:
+                        download_result = ydl.download([selected_url])
+                        if download_result not in (None, 0):
+                            last_error = f"yt-dlp return code {download_result}"
+                            log_error(f"[YOUTUBE] Candidato falhou: {selected_url} :: {last_error}")
+                            continue
+
+                        final_path = find_downloaded_file(folder, base, preferred_ext=preferred_ext)
+                        if AUDIO_FORMAT == "mp3" and (not final_path or Path(final_path).suffix.lower() != ".mp3"):
+                            downloaded_path = find_downloaded_file(folder, base)
+                            if downloaded_path:
+                                final_path = convert_existing_to_mp3(downloaded_path)
+                        if final_path and os.path.exists(final_path):
+                            spectral_profile = inspect_downloaded_spectrum(final_path)
+                            if spectral_profile.get("available"):
+                                cutoff_hz = _finite_float(spectral_profile.get("cutoff_hz")) or 0.0
+                                drop_db = _finite_float(spectral_profile.get("drop_db"))
+                                if spectral_profile.get("suspicious"):
+                                    log(
+                                        f"Corte espectral suspeito perto de {cutoff_hz / 1000:.1f} kHz"
+                                        + (f" (queda de {abs(drop_db):.1f} dB)." if drop_db is not None else ".")
+                                    )
+                                    remember_quality_fallback(final_path, spectral_profile, selected_url, position)
+                                    final_path = None
+                                    if position < attempt_limit:
+                                        log("Tentando automaticamente o proximo candidato do YouTube.")
+                                    continue
+                                log(f"Espectro verificado: alcance aproximado de {cutoff_hz / 1000:.1f} kHz, sem corte rigido suspeito.")
+                            elif YTDLP_SPECTRAL_CHECK:
+                                debug(f"Verificacao espectral indisponivel: {spectral_profile.get('reason') or 'motivo desconhecido'}")
+                                if quality_fallback:
+                                    Path(final_path).unlink(missing_ok=True)
+                                    final_path = None
+                                    continue
+                            if quality_fallback:
+                                Path(str(quality_fallback["stash"])).unlink(missing_ok=True)
+                                quality_fallback = None
+                            log(f"YouTube selecionado: {selected_url}")
+                            break
+                        last_error = "file not found after download"
+                    except Exception as exc:
+                        last_error = str(exc)
+                        log_error(f"[YOUTUBE] Candidato falhou: {selected_url} :: {exc}")
+                        if use_browser_cookies and "cookie" in last_error.lower():
+                            YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN = True
+                            log("Cookies do navegador falharam; desativando cookies para o restante desta execucao.")
+                            break
+                if final_path and os.path.exists(final_path):
+                    break
+        except Exception as e:
+            last_error = str(e)
+            log_error(f"[YOUTUBE] Falha na busca de candidatos: {artist} - {title} :: {e}")
+            if use_browser_cookies and "cookie" in last_error.lower():
+                YTDLP_BROWSER_COOKIES_DISABLED_FOR_RUN = True
+                log("Cookies do navegador falharam; desativando cookies para o restante desta execucao.")
+
+        if (final_path and os.path.exists(final_path)) or quality_fallback:
             break
+
+    if (not final_path or not os.path.exists(final_path)) and quality_fallback:
+        fallback_stash = str(quality_fallback["stash"])
+        fallback_target = str(quality_fallback["target"])
+        os.replace(fallback_stash, fallback_target)
+        final_path = fallback_target
+        selected_url = str(quality_fallback["url"])
+        fallback_cutoff = (_finite_float(quality_fallback["profile"].get("cutoff_hz")) or 0.0) / 1000
+        log(
+            f"Todas as fontes testadas apresentaram limitacoes; mantendo a melhor alternativa "
+            f"(alcance aproximado de {fallback_cutoff:.1f} kHz)."
+        )
 
     if not final_path or not os.path.exists(final_path):
         log_error(f"[YOUTUBE] File not found after download: {artist} - {title} :: {last_error}")
@@ -615,7 +1117,7 @@ def run_youtube_track(
         log(f"✅ YouTube OK: {os.path.basename(final_path)}")
         return "downloaded", final_path
     except Exception as e:
-        log_error(f"[YOUTUBE] Post-process exception: {query} :: {e}")
+        log_error(f"[YOUTUBE] Post-process exception: {selected_url or f'{artist} - {title}'} :: {e}")
         return "failed", None
 
 # =========================

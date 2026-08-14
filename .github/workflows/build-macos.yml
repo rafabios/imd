@@ -75,7 +75,7 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest -q
-          python -m py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py audio_analysis.py
+          python -m py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py google_sheets.py audio_analysis.py
 
       - name: Build macOS app
         run: |
