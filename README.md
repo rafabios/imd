@@ -15,6 +15,16 @@ Painel local para importar listas, localizar faixas, baixar áudio, converter fo
 
 ![Painel local do IMD](docs/assets/panel-preview.svg)
 
+## Pendente para a próxima atualização
+
+Incluir o commit [`953fa57`](https://github.com/rafabios/imd/commit/953fa57), já disponível na branch `codex/v1.1.0-audio-soundcloud`, na próxima release e nos instaladores:
+
+- Atualizar imediatamente os destinos de Baixar áudio e SoundCloud ao salvar ou recarregar a pasta padrão, sem reiniciar o aplicativo.
+- Verificar a gravação na pasta antes do download e explicar bloqueios de acesso, incluindo a proteção de pastas do Windows.
+- Executar os testes de regressão dessas correções nos workflows de Windows e macOS.
+
+Essas correções ainda não estão nos instaladores da v1.1.1. Publicar junto da próxima atualização planejada; não gerar uma release apenas para este registro.
+
 ## Novidades da v1.1.1
 
 Áudio por link sem artista obrigatório, SoundCloud com links de compartilhamento, organização em subpastas por gênero e telas separadas para cada tarefa. Veja os [instaladores e notas da release](https://github.com/rafabios/imd/releases/tag/v1.1.1).
