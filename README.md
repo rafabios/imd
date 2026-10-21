@@ -15,9 +15,9 @@ Painel local para importar listas, localizar faixas, baixar áudio, converter fo
 
 ![Painel local do IMD](docs/assets/panel-preview.svg)
 
-## Novidades da v1.1.0
+## Novidades da v1.1.1
 
-Áudio por link sem artista obrigatório, SoundCloud com links de compartilhamento, organização em subpastas por gênero e telas separadas para cada tarefa. Veja os [instaladores e notas da release](https://github.com/rafabios/imd/releases/tag/v1.1.0).
+Áudio por link sem artista obrigatório, SoundCloud com links de compartilhamento, organização em subpastas por gênero e telas separadas para cada tarefa. Veja os [instaladores e notas da release](https://github.com/rafabios/imd/releases/tag/v1.1.1).
 
 ## O que é o IMD
 

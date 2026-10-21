@@ -31,7 +31,8 @@ def test_windows_music_default_uses_redirected_known_folder(monkeypatch, tmp_pat
     assert imd_paths.default_music_dir(platform="win32") == redirected / "IMD"
 
 
-def test_non_macos_frozen_app_keeps_executable_directory():
-    path = imd_paths.frozen_app_data_dir("C:/Users/test/AppData/Local/IMD/IMD.exe", "win32")
+def test_non_macos_frozen_app_keeps_executable_directory(tmp_path):
+    executable = tmp_path / "IMD" / "IMD.exe"
+    path = imd_paths.frozen_app_data_dir(str(executable), "win32")
 
-    assert path == Path("C:/Users/test/AppData/Local/IMD")
+    assert path == executable.parent.resolve()

@@ -697,8 +697,9 @@ def test_dry_run_does_not_download_or_create_history(app, tmp_path):
     assert not (tmp_path / "music").exists()
 
 
-def test_conversion_destination_path(app):
-    assert app.conversion_destination_path("C:/Music/Track.m4a", "mp3") == "C:\\Music\\Track.mp3"
+def test_conversion_destination_path(app, tmp_path):
+    source = tmp_path / "Music" / "Track.m4a"
+    assert app.conversion_destination_path(str(source), "mp3") == str(source.with_suffix(".mp3"))
 
 
 def test_conversion_dry_run_does_not_create_or_delete_files(app, tmp_path):
