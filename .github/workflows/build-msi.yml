@@ -91,6 +91,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pytest -q
+          node --test tests/web_config_sync.test.js
           python -m py_compile app_server.py music_downloader.py imd_launcher.py imd_paths.py google_sheets.py audio_analysis.py
 
       - name: Build portable app folder

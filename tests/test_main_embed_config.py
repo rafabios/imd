@@ -947,3 +947,13 @@ def test_direct_audio_uses_source_without_music_search(app, monkeypatch, tmp_pat
     assert captured["noplaylist"] is True
     assert "100%% voice" in captured["outtmpl"]
     assert saved == [{"FILE:" + output.name}]
+
+
+@pytest.mark.parametrize("failure", [PermissionError("blocked"), FileNotFoundError("blocked")])
+def test_direct_audio_checks_destination_before_network(app, monkeypatch, tmp_path, failure):
+    def blocked(*args, **kwargs):
+        raise failure
+    monkeypatch.setattr(app.tempfile, "TemporaryFile", blocked)
+    monkeypatch.setattr(app.yt_dlp, "YoutubeDL", lambda *args: pytest.fail("Must fail before network access"))
+    with pytest.raises(RuntimeError, match="Salvar na pasta"):
+        app.download_audio_url("https://soundcloud.com/artist/song", "wav", str(tmp_path))

@@ -379,7 +379,18 @@ function appendGoogleSheetControls(wrapper, input) {
   wrapper.append(actions, help);
 }
 
+function syncDownloadDestinations(config) {
+  const nextFolder = config.paths?.music_dir || "";
+  const previousFolder = currentConfig.paths?.music_dir || "";
+  ["audio", "soundcloud"].forEach((prefix) => {
+    const field = document.querySelector(`#${prefix}-destination`);
+    if (!field.value || nextFolder !== previousFolder) field.value = nextFolder;
+  });
+  updateAudioDestinationPreview();
+}
+
 function renderConfigEditor(config) {
+  syncDownloadDestinations(config);
   currentConfig = config;
   fieldTypes = new Map();
   configFormEl.innerHTML = "";
@@ -642,11 +653,6 @@ async function loadConfig() {
     renderSummary(data.summary);
     renderValidation(data.validation);
     renderConfigEditor(data.config);
-    const destination = document.querySelector("#audio-destination");
-    if (!destination.value) destination.value = data.config.paths?.music_dir || "";
-    const soundcloudDestination = document.querySelector("#soundcloud-destination");
-    if (!soundcloudDestination.value) soundcloudDestination.value = data.config.paths?.music_dir || "";
-    updateAudioDestinationPreview();
     setSaveStatus("");
     await loadLatestConversionTask();
     await loadLatestDownloadTask();

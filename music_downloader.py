@@ -4,6 +4,7 @@ import math
 import re
 import sys
 import shutil
+import tempfile
 import subprocess
 import json
 import html
@@ -1851,7 +1852,18 @@ def run_conversion_mode() -> Dict[str, int]:
 def download_audio_url(url: str, audio_format: str, destination: str, name: str = "") -> None:
     """Download an exact source without music matching or invented artist tags."""
     folder = os.path.abspath(os.path.expanduser(destination or MUSIC_DIR))
-    os.makedirs(folder, exist_ok=True)
+    try:
+        os.makedirs(folder, exist_ok=True)
+        # Run in the worker: Windows may allow the server/Python but block IMD.exe.
+        with tempfile.TemporaryFile(dir=folder, prefix=".imd-write-check-", mode="w+b") as probe:
+            probe.write(b"IMD")
+            probe.flush()
+    except OSError as error:
+        raise RuntimeError(
+            f"Não foi possível gravar na pasta de destino: {folder}. "
+            "Escolha outra pasta em 'Salvar na pasta'. No Windows, confira também "
+            "o Histórico de proteção: o Acesso Controlado a Pastas pode bloquear o IMD."
+        ) from error
     base = safe_name(name).replace("%", "%%") if name else "%(title).160B"
     opts = yt_dlp_opts(folder, base + " [%(id)s]")
     opts.update({
@@ -1904,7 +1916,11 @@ def main():
     parser.add_argument("--audio-name", default="")
     args, _ = parser.parse_known_args()
     if args.audio_url:
-        download_audio_url(args.audio_url, args.audio_format, args.audio_destination, args.audio_name)
+        try:
+            download_audio_url(args.audio_url, args.audio_format, args.audio_destination, args.audio_name)
+        except RuntimeError as error:
+            log_error(str(error))
+            raise SystemExit(1) from None
         return
     reescan_list = config_bool("execution.reescan_list", False) if args.reescan_list is None else args.reescan_list
     dry_run = config_bool("execution.dry_run", False) if args.dry_run is None else args.dry_run
