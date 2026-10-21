@@ -21,7 +21,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, urljoin
 import urllib.request
 import urllib.error
 
@@ -594,6 +594,8 @@ def start_conversion_task() -> Dict[str, Any]:
 
 
 def start_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
+    if options.get("audio_url"):
+        return start_audio_download_task(options)
     command = worker_command()
     if options.get("reescan_list"):
         command.append("--reescan-list")
@@ -627,6 +629,78 @@ def start_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
         current = active_task("download")
         if current:
             return {"ok": False, "error": "Ja existe um download em andamento.", "task": current.snapshot()}
+        task = start_background_task("download", command)
+    return {"ok": True, "task": task.snapshot()}
+
+
+def resolve_soundcloud_link(url: str) -> str:
+    for _ in range(5):
+        parsed = urlparse(url)
+        if (parsed.scheme not in {"http", "https"}
+                or parsed.hostname not in {"on.soundcloud.com", "soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"}
+                or parsed.username or parsed.password or parsed.port not in {None, 80, 443}):
+            raise ValueError("O link curto não aponta para uma faixa do SoundCloud.")
+        if parsed.hostname != "on.soundcloud.com":
+            return url
+        with requests.get(url, allow_redirects=False, stream=True, timeout=15) as response:
+            response.raise_for_status()
+            location = response.headers.get("Location")
+            if response.status_code not in {301, 302, 303, 307, 308} or not location:
+                raise ValueError("Não foi possível abrir o link curto. Copie o link da faixa no SoundCloud.")
+            url = urljoin(url, location)
+    raise ValueError("O link curto redirecionou muitas vezes. Use o link completo da faixa.")
+
+
+def start_audio_download_task(options: Dict[str, Any]) -> Dict[str, Any]:
+    url = str(options.get("audio_url") or "").strip()
+    parsed = urlparse(url)
+    provider = str(options.get("audio_provider") or "youtube")
+    if provider == "soundcloud":
+        if parsed.hostname == "on.soundcloud.com":
+            try:
+                url = resolve_soundcloud_link(url)
+                parsed = urlparse(url)
+            except (ValueError, requests.RequestException) as error:
+                return {"ok": False, "error": f"Não foi possível resolver o link SoundCloud: {error}"}
+        if (parsed.scheme not in {"http", "https"}
+                or parsed.hostname not in {"soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"}
+                or parsed.username or parsed.password or parsed.port not in {None, 80, 443}):
+            return {"ok": False, "error": "Cole o link completo da faixa no SoundCloud (soundcloud.com/artista/faixa)."}
+        parts = parsed.path.strip("/").split("/")
+        if (len(parts) != 2 or not all(re.fullmatch(r"[\w-]+", part) for part in parts)
+                or parts[0] in {"discover", "search", "stations", "you"}
+                or parts[1] in {"sets", "tracks", "albums", "reposts", "likes", "spotlight", "comments"}):
+            return {"ok": False, "error": "Use o link de uma faixa individual, não de perfil ou playlist."}
+        url = "https://soundcloud.com/" + "/".join(parts)
+    elif provider == "youtube":
+        if parsed.scheme not in {"http", "https"} or parsed.hostname not in {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"} or parsed.username or parsed.password:
+            return {"ok": False, "error": "Informe um link de vídeo do YouTube."}
+        video_id = parsed.path.strip("/") if parsed.hostname == "youtu.be" else (
+            parse_qs(parsed.query).get("v", [""])[0] if parsed.path == "/watch" else
+            parsed.path.split("/")[2] if re.fullmatch(r"/(shorts|live|embed)/[^/]+/?", parsed.path) else "")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+            return {"ok": False, "error": "Use um vídeo individual, não uma playlist ou canal."}
+        url = f"https://www.youtube.com/watch?v={video_id}"
+    else:
+        return {"ok": False, "error": "Origem de áudio inválida."}
+    audio_format = str(options.get("audio_format") or "wav")
+    if audio_format not in {"wav", "mp3", "flac", "m4a"}:
+        return {"ok": False, "error": "Formato de áudio inválido."}
+    destination = str(options.get("audio_destination") or configured_music_dir()).strip()
+    genre = str(options.get("audio_genre") or "").strip()
+    if genre:
+        if (genre in {".", ".."} or re.search(r'[<>:"/\\|?*\x00-\x1f]', genre)
+                or genre.endswith((".", " ")) or len(genre) > 100
+                or re.fullmatch(r"(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?", genre)):
+            return {"ok": False, "error": "Use um gênero/categoria válido para uma única subpasta, sem barras ou caracteres especiais."}
+        destination = str(Path(destination) / genre)
+    command = worker_command("--audio-url", url, "--audio-format", audio_format,
+                             "--audio-destination", destination,
+                             "--audio-name", str(options.get("audio_name") or "").strip())
+    with TASK_LOCK:
+        current = active_task("download")
+        if current:
+            return {"ok": False, "error": "Já existe um download em andamento.", "task": current.snapshot()}
         task = start_background_task("download", command)
     return {"ok": True, "task": task.snapshot()}
 

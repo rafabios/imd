@@ -8,11 +8,11 @@
   <text x="275" y="204" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="600" fill="#9FB0BD">Insane Music Downloader</text>
   <rect x="132" y="284" width="226" height="48" rx="14" fill="#253A4D"/>
   <rect x="148" y="298" width="4" height="20" rx="2" fill="#FFB22E"/>
-  <text x="174" y="315" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">Visao geral</text>
-  <text x="174" y="385" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Configuracoes</text>
-  <text x="174" y="445" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Conversao</text>
-  <text x="174" y="505" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Download</text>
-  <text x="174" y="565" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Planilha</text>
+  <text x="174" y="315" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">Baixar áudio</text>
+  <text x="174" y="385" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Download YouTube</text>
+  <text x="174" y="445" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Download Spotify</text>
+  <text x="174" y="505" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Download SoundCloud</text>
+  <text x="174" y="565" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#B7C5CF">Planilhas e listas</text>
   <rect x="465" y="126" width="990" height="170" rx="28" fill="#FFFFFF"/>
   <text x="520" y="183" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">PAINEL LOCAL</text>
   <text x="520" y="238" font-family="Inter, Arial, sans-serif" font-size="52" font-weight="900" fill="#17212B">IMD Insane Music Downloader</text>
@@ -20,26 +20,26 @@
   <text x="1335" y="191" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#087161">Online</text>
   <rect x="465" y="340" width="470" height="225" rx="22" fill="#FFFFFF"/>
   <rect x="465" y="340" width="470" height="5" rx="2.5" fill="url(#stripe)"/>
-  <text x="510" y="400" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">RESUMO</text>
-  <text x="510" y="445" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#17212B">Estado atual</text>
+  <text x="510" y="400" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">ÁUDIO POR LINK</text>
+  <text x="510" y="445" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#17212B">Vozes e músicas</text>
   <rect x="510" y="485" width="112" height="54" rx="13" fill="#F8FBFC"/>
   <rect x="642" y="485" width="112" height="54" rx="13" fill="#F8FBFC"/>
   <rect x="774" y="485" width="112" height="54" rx="13" fill="#F8FBFC"/>
-  <text x="566" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">MP3</text>
-  <text x="698" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">320</text>
-  <text x="830" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">4x</text>
+  <text x="566" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">WAV</text>
+  <text x="698" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">FLAC</text>
+  <text x="830" y="518" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#17212B">MP3</text>
   <rect x="980" y="340" width="475" height="225" rx="22" fill="#FFFFFF"/>
   <rect x="980" y="340" width="475" height="5" rx="2.5" fill="url(#stripe)"/>
-  <text x="1025" y="400" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">SAUDE</text>
-  <text x="1025" y="445" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#17212B">Configuracao</text>
+  <text x="1025" y="400" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">ORGANIZAÇÃO</text>
+  <text x="1025" y="445" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#17212B">Gênero e pasta</text>
   <rect x="1025" y="485" width="350" height="46" rx="12" fill="#DEF6F1"/>
-  <text x="1048" y="514" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#087161">Config carregado com sucesso.</text>
+  <text x="1048" y="514" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#087161">Destino: Samples / Vozes</text>
   <rect x="465" y="610" width="990" height="220" rx="22" fill="#FFFFFF"/>
   <rect x="465" y="610" width="990" height="5" rx="2.5" fill="url(#stripe)"/>
-  <text x="510" y="670" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">GOOGLE SHEETS</text>
+  <text x="510" y="670" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#087161">LINK DO YOUTUBE OU SOUNDCLOUD</text>
   <rect x="510" y="710" width="420" height="46" rx="12" fill="#F8FBFC" stroke="#D7E1E6"/>
   <rect x="955" y="710" width="140" height="46" rx="12" fill="#132435"/>
-  <text x="1025" y="740" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#FFFFFF">Carregar</text>
+  <text x="1025" y="740" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="900" fill="#FFFFFF">Baixar áudio</text>
   <rect x="510" y="786" width="860" height="2" fill="#D7E1E6"/>
   <rect x="510" y="820" width="670" height="2" fill="#D7E1E6"/>
   <defs>

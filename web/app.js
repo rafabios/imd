@@ -533,7 +533,12 @@ function renderDownloadTask(task) {
   }
 
   activeDownloadTaskId = task.id;
-  downloadStatusEl.textContent = task.status;
+  downloadStatusEl.textContent = ({ pending: "Na fila", running: "Baixando", canceling: "Parando", canceled: "Cancelado", succeeded: "Concluído", failed: "Falhou", interrupted: "Interrompido" })[task.status] || task.status;
+  document.querySelector("#audio-feedback").textContent = ({
+    succeeded: "Processamento concluído. Confira o destino nos detalhes abaixo.",
+    failed: "Não foi possível concluir. Abra os detalhes técnicos para ver o motivo.",
+    canceled: "Operação cancelada.",
+  })[task.status] || "";
   downloadStartedEl.textContent = valueText(task.started_at);
   downloadFinishedEl.textContent = valueText(task.finished_at);
   downloadLogs = task.logs || [];
@@ -637,6 +642,11 @@ async function loadConfig() {
     renderSummary(data.summary);
     renderValidation(data.validation);
     renderConfigEditor(data.config);
+    const destination = document.querySelector("#audio-destination");
+    if (!destination.value) destination.value = data.config.paths?.music_dir || "";
+    const soundcloudDestination = document.querySelector("#soundcloud-destination");
+    if (!soundcloudDestination.value) soundcloudDestination.value = data.config.paths?.music_dir || "";
+    updateAudioDestinationPreview();
     setSaveStatus("");
     await loadLatestConversionTask();
     await loadLatestDownloadTask();
@@ -701,7 +711,7 @@ async function cancelConversion() {
 }
 
 function openAnalysisSection() {
-  document.querySelector("#analysis").scrollIntoView({ behavior: "smooth", block: "start" });
+  showScreen("analysis");
 }
 
 async function startLibraryAnalysis() {
@@ -799,7 +809,7 @@ async function analyzeAudioFiles(fileList) {
 
 function collectDownloadOptions() {
   return {
-    reescan_list: downloadReescanEl.checked,
+    reescan_list: !downloadReescanEl.closest("label").hidden && downloadReescanEl.checked,
     dry_run: downloadDryRunEl.checked,
     tagmusic: downloadTagmusicEl.checked,
     row_selection: downloadOnlyRowEl.value.trim() || null,
@@ -809,15 +819,19 @@ function collectDownloadOptions() {
 
 function updateDownloadSourcePanels() {
   const source = downloadSourceEl.value;
+  document.querySelector(".download-options").hidden = ["audio_link", "soundcloud_link"].includes(source);
+  downloadReescanEl.closest("label").hidden = !["spotify_playlist", "google_sheet", "import_file"].includes(source);
+  downloadTagmusicEl.closest("label").hidden = true;
+  downloadTagmusicEl.checked = false;
   downloadSourcePanels.forEach((panel) => {
     panel.hidden = panel.dataset.downloadSourcePanel !== source;
   });
 }
 
 function openDownloadShortcut(source) {
+  showScreen(source.startsWith("spotify_") ? "spotify" : source === "youtube_search" ? "youtube" : source === "soundcloud_link" ? "soundcloud" : "download");
   downloadSourceEl.value = source;
   updateDownloadSourcePanels();
-  document.querySelector("#download").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function openMusicFolder() {
@@ -1060,7 +1074,7 @@ function renderAnalysisTask(task, report = null) {
 async function startTagMusic() {
   tagMusicEls.forEach((button) => { button.disabled = true; });
   downloadLogEl.textContent = "Iniciando tageamento da pasta de musicas...";
-  document.querySelector("#download").scrollIntoView({ behavior: "smooth", block: "start" });
+  showScreen("download");
   try {
     const response = await fetch("/api/tag-music/start", {
       method: "POST",
@@ -1096,10 +1110,30 @@ function manualRow(artist, title, genre = "", spotifyUrl = "") {
 }
 
 async function startDownload() {
+  document.querySelector("#audio-feedback").textContent = "";
   startDownloadEl.disabled = true;
   downloadLogEl.textContent = "Solicitando inicio do download...";
   try {
     const source = downloadSourceEl.value;
+    if (["audio_link", "soundcloud_link"].includes(source)) {
+      const prefix = source === "soundcloud_link" ? "soundcloud" : "audio";
+      const response = await fetch("/api/download/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ options: {
+          audio_provider: prefix === "soundcloud" ? "soundcloud" : "youtube",
+          audio_url: requireValue(document.querySelector(`#${prefix}-url`), "Cole o link que deseja baixar."),
+          audio_genre: document.querySelector(`#${prefix}-genre`).value.trim(),
+          audio_name: document.querySelector(`#${prefix}-name`).value.trim(),
+          audio_format: document.querySelector(`#${prefix}-format`).value,
+          audio_destination: document.querySelector(`#${prefix}-destination`).value.trim(),
+        } }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || "Falha ao iniciar download");
+      document.querySelector("#audio-feedback").textContent = "Download iniciado. Acompanhe o status abaixo.";
+      renderDownloadTask(data.task);
+      return;
+    }
     if (source === "google_sheet") {
       const response = await fetch("/api/download/start", {
         method: "POST",
@@ -1155,6 +1189,7 @@ async function startDownload() {
     throw new Error("Origem de download desconhecida.");
   } catch (error) {
     downloadLogEl.textContent = friendlyError(error);
+    document.querySelector("#audio-feedback").textContent = friendlyError(error);
     startDownloadEl.disabled = false;
   }
 }
@@ -1741,3 +1776,57 @@ drawAnalysisChart(null);
 loadConfig();
 loadTasks();
 loadEnvironment();
+
+function configureDownloadScreen(route) {
+  const groups = {
+    download: [["audio_link", "Tenho o link do vídeo"]],
+    soundcloud: [["soundcloud_link", "Link da faixa"]],
+    youtube: [["youtube_search", "Quero procurar uma música"]],
+    spotify: [["spotify_playlist", "Playlist ou artista"], ["spotify_search", "Artista e música"]],
+    batches: [["google_sheet", "Planilha do Google"], ["import_file", "Arquivo importado"]],
+  };
+  document.querySelector(".download-source-select").hidden = groups[route].length === 1;
+  const previous = downloadSourceEl.value;
+  downloadSourceEl.replaceChildren(...groups[route].map(([value, label]) => new Option(label, value)));
+  if (groups[route].some(([value]) => value === previous)) downloadSourceEl.value = previous;
+  document.querySelector("#download h2").textContent = {download: "Baixar áudio", youtube: "Download YouTube", soundcloud: "Download SoundCloud", spotify: "Download Spotify", batches: "Baixar listas"}[route];
+  document.querySelector("#download .eyebrow").textContent = {download: "Vozes e samples por link", youtube: "Músicas do YouTube", soundcloud: "Faixas do SoundCloud", spotify: "Spotify", batches: "Downloads em lote"}[route];
+  startDownloadEl.textContent = ["download", "soundcloud"].includes(route) ? "Baixar áudio" : "Baixar músicas";
+  updateDownloadSourcePanels();
+}
+
+function showScreen(id) {
+  const screens = [...document.querySelectorAll("main.content > section")];
+  const downloadRoute = ["download", "youtube", "spotify", "soundcloud", "batches"].includes(id);
+  if (downloadRoute) configureDownloadScreen(id);
+  const target = screens.find((screen) => screen.id === (downloadRoute ? "download" : id)) || screens.find((screen) => screen.id === "download");
+  const route = downloadRoute ? id : target.id;
+  screens.forEach((screen) => { screen.hidden = screen !== target; });
+  document.querySelectorAll(".nav-list a").forEach((link) => {
+    const active = link.hash === `#${route}`;
+    link.classList.toggle("active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+  if (location.hash !== `#${route}`) history.pushState(null, "", `#${route}`);
+  document.querySelector(".topbar h1").textContent = target.querySelector("h2")?.textContent || "IMD";
+  window.scrollTo({ top: 0 });
+}
+document.querySelectorAll(".nav-list a").forEach((link) => {
+  link.addEventListener("click", (event) => { event.preventDefault(); showScreen(link.hash.slice(1)); });
+});
+window.addEventListener("hashchange", () => showScreen(location.hash.slice(1)));
+showScreen(location.hash.slice(1) || "download");
+
+window.addEventListener("load", () => window.scrollTo({ top: 0 }));
+
+function updateAudioDestinationPreview() {
+  ["audio", "soundcloud"].forEach((prefix) => {
+    const folder = document.querySelector(`#${prefix}-destination`).value.trim();
+    const genre = document.querySelector(`#${prefix}-genre`).value.trim();
+    document.querySelector(`#${prefix}-destination-preview`).textContent = `Destino: ${folder || "pasta configurada"}${genre ? "/" + genre : ""}`;
+  });
+}
+["audio", "soundcloud"].forEach((prefix) => {
+  ["genre", "destination"].forEach((field) => document.querySelector(`#${prefix}-${field}`).addEventListener("input", updateAudioDestinationPreview));
+});

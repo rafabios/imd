@@ -224,3 +224,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local FFmpeg runtime binaries (release builds provide their own).
+vendor/ffmpeg/*.exe

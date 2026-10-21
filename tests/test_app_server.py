@@ -997,3 +997,98 @@ def test_http_import_preview_endpoint():
     assert payload["ok"] is True
     assert payload["rows"][0]["artist"] == "A"
     assert payload["rows"][0]["title"] == "T"
+
+
+@pytest.mark.parametrize("url", ["file:///tmp/test", "https://youtube.com.evil.test/watch?v=abcdefghijk", "https://youtube.com/playlist?list=123", "https://youtube.com/@channel"])
+def test_audio_link_rejects_non_video_sources(url):
+    result = app_server.start_download_task({"audio_url": url})
+    assert result["ok"] is False
+    assert not app_server.TASKS
+
+
+def test_audio_link_starts_independent_worker(monkeypatch, tmp_path):
+    commands = []
+    class Task:
+        def snapshot(self):
+            return {"id": "audio", "status": "pending"}
+    monkeypatch.setattr(app_server, "start_background_task", lambda kind, command: commands.append((kind, command)) or Task())
+    result = app_server.start_download_task({
+        "audio_url": "https://youtu.be/abcdefghijk?list=ignored",
+        "audio_format": "wav", "audio_destination": str(tmp_path / "Vozes"),
+        "audio_name": "Minha fala", "audio_genre": "Entrevistas", "tagmusic": True,
+    })
+    assert result["ok"]
+    kind, command = commands[0]
+    assert kind == "download"
+    assert command[command.index("--audio-url") + 1] == "https://www.youtube.com/watch?v=abcdefghijk"
+    assert command[command.index("--audio-name") + 1] == "Minha fala"
+    assert command[command.index("--audio-destination") + 1] == str(tmp_path / "Vozes" / "Entrevistas")
+    assert "--tagmusic" not in command
+
+
+def test_audio_link_rejects_invalid_format():
+    assert not app_server.start_download_task({"audio_url": "https://youtu.be/abcdefghijk", "audio_format": "exe"})["ok"]
+
+
+@pytest.mark.parametrize("genre", ["../escape", "..", "C:\\escape", "Vozes/Outra", "NUL", "CON.txt"])
+def test_audio_category_rejects_invalid_folder(genre, tmp_path):
+    result = app_server.start_audio_download_task({
+        "audio_url": "https://youtu.be/abcdefghijk", "audio_genre": genre,
+        "audio_destination": str(tmp_path),
+    })
+    assert result["ok"] is False
+    assert not app_server.TASKS
+
+
+@pytest.mark.parametrize("url", ["https://soundcloud.com/artist", "https://soundcloud.com/artist/sets/album", "https://soundcloud.com/artist/tracks", "https://soundcloud.com.evil.test/artist/song", "https://youtu.be/abcdefghijk", "file:///artist/song"])
+def test_soundcloud_rejects_non_track_links(url):
+    result = app_server.start_audio_download_task({"audio_provider": "soundcloud", "audio_url": url})
+    assert not result["ok"]
+    assert not app_server.TASKS
+
+
+def test_soundcloud_download_preserves_track_and_category(monkeypatch, tmp_path):
+    commands = []
+    class Task:
+        def snapshot(self):
+            return {"id": "soundcloud", "status": "pending"}
+    monkeypatch.setattr(app_server, "start_background_task", lambda kind, command: commands.append(command) or Task())
+    result = app_server.start_download_task({
+        "audio_provider": "soundcloud", "audio_url": "https://www.soundcloud.com/artist/my-track?si=tracking",
+        "audio_destination": str(tmp_path), "audio_genre": "House", "audio_format": "mp3",
+    })
+    assert result["ok"]
+    command = commands[0]
+    assert command[command.index("--audio-url") + 1] == "https://soundcloud.com/artist/my-track"
+    assert command[command.index("--audio-destination") + 1] == str(tmp_path / "House")
+    assert command[command.index("--audio-format") + 1] == "mp3"
+
+
+@pytest.mark.parametrize("target", ["https://soundcloud.com/artist/song", "https://example.com/track", "http://127.0.0.1/private"])
+def test_soundcloud_short_link_validates_redirect(monkeypatch, target):
+    calls = []
+    class Response:
+        status_code = 302
+        headers = {"Location": target}
+        def raise_for_status(self): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+    def get(url, **kwargs):
+        calls.append(url)
+        assert kwargs["allow_redirects"] is False
+        return Response()
+    monkeypatch.setattr(app_server.requests, "get", get)
+    if target.startswith("https://soundcloud.com/"):
+        assert app_server.resolve_soundcloud_link("https://on.soundcloud.com/abc") == target
+    else:
+        with pytest.raises(ValueError):
+            app_server.resolve_soundcloud_link("https://on.soundcloud.com/abc")
+    assert calls == ["https://on.soundcloud.com/abc"]
+
+
+def test_soundcloud_short_link_timeout_is_friendly(monkeypatch):
+    def timeout(*args, **kwargs): raise app_server.requests.Timeout("timeout")
+    monkeypatch.setattr(app_server.requests, "get", timeout)
+    result = app_server.start_audio_download_task({"audio_provider": "soundcloud", "audio_url": "https://on.soundcloud.com/abc"})
+    assert result["ok"] is False
+    assert not app_server.TASKS

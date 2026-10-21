@@ -18,7 +18,9 @@
         </div>
         <div class="sidebar-actions" aria-label="Ações rápidas">
           <button class="sidebar-action spotify-action" type="button" data-download-shortcut="spotify_playlist">Download Spotify</button>
+          <button class="sidebar-action youtube-action" type="button" data-download-shortcut="audio_link">Baixar áudio</button>
           <button class="sidebar-action youtube-action" type="button" data-download-shortcut="youtube_search">Download YouTube</button>
+          <button class="sidebar-action soundcloud-action" type="button" data-download-shortcut="soundcloud_link">Download SoundCloud</button>
           <button class="sidebar-action analysis-action" type="button" data-open-analysis>Análise de Música</button>
           <button class="sidebar-action tag-action" type="button" data-tag-music>Tagear Músicas</button>
           <button class="sidebar-action folder-action" type="button" data-open-music-folder>Pasta de Musicas</button>
@@ -28,9 +30,13 @@
           <a href="#config">Configuracoes</a>
           <a href="#conversion">Conversao</a>
           <a href="#analysis">Analise</a>
-          <a href="#download">Download</a>
-          <a href="#sheets">Planilha</a>
-          <a href="#import">Importacao</a>
+          <a href="#download">Baixar áudio</a>
+          <a href="#youtube">Download YouTube</a>
+          <a href="#spotify">Spotify</a>
+          <a href="#soundcloud">SoundCloud</a>
+          <a href="#batches">Baixar listas</a>
+          <a href="#sheets">Planilhas</a>
+          <a href="#import">Importar listas</a>
           <a href="#tasks">Fila</a>
           <a href="#environment">Ambiente</a>
           <a href="#history">Historico</a>
@@ -42,7 +48,7 @@
           <div>
             <p class="eyebrow">Painel local</p>
             <h1>IMD Insane Music Downloader</h1>
-            <p class="hero-copy">Escolha de onde vem a musica e comece o download.</p>
+            <p class="hero-copy">Seu áudio, do link à produção.</p>
           </div>
           <div id="health" class="status-pill">Carregando</div>
         </header>
@@ -58,9 +64,17 @@
                 <span>Spotify</span>
                 <small>Playlist ou artista</small>
               </button>
+              <button class="start-action youtube-action" type="button" data-download-shortcut="audio_link">
+                <span>Baixar áudio</span>
+                <small>Baixe o áudio de um vídeo</small>
+              </button>
               <button class="start-action youtube-action" type="button" data-download-shortcut="youtube_search">
-                <span>YouTube</span>
-                <small>Artista e musica</small>
+                <span>Download YouTube</span>
+                <small>Procure uma música pelo nome</small>
+              </button>
+              <button class="start-action soundcloud-action" type="button" data-download-shortcut="soundcloud_link">
+                <span>Download SoundCloud</span>
+                <small>Cole o link de uma faixa</small>
               </button>
               <button class="start-action analysis-action" type="button" data-open-analysis>
                 <span>Análise de Música</span>
@@ -274,8 +288,8 @@
         <section id="download" class="panel wide-panel">
           <div class="panel-heading split-heading">
             <div>
-              <p class="eyebrow">YT-DLP</p>
-              <h2>Download</h2>
+              <p class="eyebrow">Capturar áudio</p>
+              <h2>Download YouTube</h2>
             </div>
             <div class="button-row">
               <button id="start-download" class="primary-button" type="button">Baixar</button>
@@ -284,8 +298,9 @@
           </div>
           <div class="download-source-grid">
             <label class="download-source-select">
-              <span>Origem do download</span>
+              <span>Como você quer baixar?</span>
               <select id="download-source">
+                <option value="audio_link">Link do YouTube — áudio direto</option>
                 <option value="google_sheet">Planilha do Google</option>
                 <option value="import_file">Importar arquivo</option>
                 <option value="youtube_search">Procurar no YouTube</option>
@@ -293,7 +308,47 @@
                 <option value="spotify_playlist">Playlist/artista do Spotify</option>
               </select>
             </label>
-            <div class="source-panel" data-download-source-panel="google_sheet">
+            <div class="source-panel audio-link-panel" data-download-source-panel="audio_link">
+              <p class="source-help">Copie o link do vídeo no YouTube, cole abaixo e clique em Baixar áudio.</p>
+              <label for="audio-url">Link do vídeo</label>
+              <input id="audio-url" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+              <label for="audio-name">Nome do arquivo <small>(opcional)</small></label>
+              <input id="audio-name" type="text" placeholder="Usar o título original do vídeo" />
+              <label for="audio-genre">Gênero / categoria <small>(opcional)</small></label>
+              <input id="audio-genre" type="text" placeholder="Ex.: Vozes, Psytrance, Entrevistas" />
+              <small>Cria uma subpasta dentro do destino escolhido.</small>
+              <div class="audio-output-grid">
+                <label>Formato
+                  <select id="audio-format"><option value="wav">WAV — produção</option><option value="flac">FLAC</option><option value="mp3">MP3</option><option value="m4a">M4A</option></select>
+                </label>
+                <label>Salvar na pasta
+                  <input id="audio-destination" type="text" placeholder="Carregando pasta configurada…" />
+                </label>
+              </div>
+              <small id="audio-destination-preview" aria-live="polite"></small>
+              <small>WAV facilita a edição, mas não recupera qualidade ausente na fonte. O vídeo será baixado inteiro.</small>
+            </div>
+            <div class="source-panel audio-link-panel" data-download-source-panel="soundcloud_link" hidden>
+              <p class="source-help">Cole o link da faixa ou o link curto de compartilhamento do SoundCloud e clique em Baixar áudio.</p>
+              <label for="soundcloud-url">Link da faixa</label>
+              <input id="soundcloud-url" type="url" placeholder="https://soundcloud.com/artista/faixa" />
+              <label for="soundcloud-name">Nome do arquivo <small>(opcional)</small></label>
+              <input id="soundcloud-name" type="text" placeholder="Usar o título original da faixa" />
+              <label for="soundcloud-genre">Gênero / categoria <small>(opcional)</small></label>
+              <input id="soundcloud-genre" type="text" placeholder="Ex.: Vozes, Psytrance, Entrevistas" />
+              <small>Cria uma subpasta dentro do destino escolhido.</small>
+              <div class="audio-output-grid">
+                <label>Formato
+                  <select id="soundcloud-format"><option value="wav">WAV — produção</option><option value="flac">FLAC</option><option value="mp3">MP3</option><option value="m4a">M4A</option></select>
+                </label>
+                <label>Salvar na pasta
+                  <input id="soundcloud-destination" type="text" placeholder="Carregando pasta configurada…" />
+                </label>
+              </div>
+              <small id="soundcloud-destination-preview" aria-live="polite"></small>
+              <small>WAV facilita a edição, mas não recupera qualidade ausente na fonte. A faixa será baixada inteira.</small>
+            </div>
+            <div class="source-panel" data-download-source-panel="google_sheet" hidden>
               <label>
                 <span>Linhas da planilha</span>
                 <input id="download-only-row" type="text" placeholder="Ex.: 2,5,8-12 ou todos" />
@@ -374,8 +429,10 @@
             </div>
           </div>
           <div id="download-progress" class="progress-line"></div>
+            <details class="download-details"><summary>Detalhes técnicos do download</summary>
             <input id="download-log-filter" class="log-filter" type="search" placeholder="Filtrar log do download" />
-          <pre id="download-log" class="task-log">Nenhum download iniciado nesta sessao.</pre>
+          <pre id="download-log" class="task-log">Nenhum download iniciado nesta sessao.</pre></details>
+          <div id="audio-feedback" class="save-status" role="status"></div>
         </section>
 
         <section id="import" class="panel wide-panel">

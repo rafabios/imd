@@ -1265,3 +1265,33 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Each workspace is a screen; hidden wins over component grid styles. */
+[hidden] { display: none !important; }
+.audio-link-panel { gap: 12px; padding: 24px; background: #f4faf9; }
+.audio-link-panel > input { width: 100%; }
+.audio-link-panel #audio-url { min-height: 54px; font-size: 17px; }
+.audio-output-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; }
+.audio-output-grid label { display: grid; gap: 8px; min-width: 0; }
+.audio-output-grid select { padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: white; font: inherit; }
+.download-details { margin-top: 16px; }
+.download-details summary { cursor: pointer; color: var(--muted); padding: 12px 0; }
+.sidebar { overflow-y: auto; }
+.content { min-width: 0; }
+main.content > section { max-width: 1280px; margin-inline: auto; }
+@media (max-width: 640px) { .audio-output-grid { grid-template-columns: 1fr; } }
+
+.download-source-grid { grid-template-columns: 1fr; }
+.download-source-select { align-content: start; grid-template-columns: 180px minmax(0, 1fr); align-items: center; }
+.download-source-select select { width: 100%; min-width: 0; }
+.sidebar-actions { grid-template-columns: 1fr; }
+.sidebar-action { height: 44px; min-height: 44px; padding: 0 14px; font-size: 14px; }
+
+@media (max-width: 640px) { .download-source-select { grid-template-columns: 1fr; } }
+
+.button-row > button { min-height: 44px; min-width: 120px; }
+.source-actions .secondary-button { min-height: 44px; }
+.download-options { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+.soundcloud-action { background: linear-gradient(135deg, #ed710a, #b44200); color: white; }
+.audio-link-panel #soundcloud-url { min-height: 54px; font-size: 17px; }

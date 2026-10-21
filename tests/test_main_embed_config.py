@@ -914,3 +914,35 @@ def test_main_conversion_only_does_not_read_sheet(app, monkeypatch):
     app.main()
 
     assert called == ["conversion"]
+
+
+
+@pytest.mark.parametrize("source_url", ["https://youtu.be/abcdefghijk", "https://soundcloud.com/artist/my-track"])
+def test_direct_audio_uses_source_without_music_search(app, monkeypatch, tmp_path, source_url):
+    captured = {}
+    output = tmp_path / "Voice [abcdefghijk].wav"
+    output.write_bytes(b"audio")
+    class Downloader:
+        def __init__(self, options):
+            captured.update(options)
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def extract_info(self, url, download):
+            assert url == source_url
+            assert download
+            for hook in captured["postprocessor_hooks"]:
+                hook({"status": "finished", "info_dict": {"filepath": str(output)}})
+            return {"id": "abcdefghijk", "title": "Voice"}
+    monkeypatch.setattr(app.yt_dlp, "YoutubeDL", Downloader)
+    monkeypatch.setattr(app, "load_history", lambda: set())
+    saved = []
+    monkeypatch.setattr(app, "save_history", lambda value: saved.append(value))
+    monkeypatch.setattr(app, "build_search_queries", lambda *args: pytest.fail("Music search must not run"))
+    app.download_audio_url(source_url, "wav", str(tmp_path), "100% voice")
+    assert captured["postprocessors"][0]["preferredcodec"] == "wav"
+    assert captured["ignoreerrors"] is False
+    assert captured["noplaylist"] is True
+    assert "100%% voice" in captured["outtmpl"]
+    assert saved == [{"FILE:" + output.name}]

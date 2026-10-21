@@ -15,13 +15,17 @@ Painel local para importar listas, localizar faixas, baixar áudio, converter fo
 
 ![Painel local do IMD](docs/assets/panel-preview.svg)
 
+## Novidades da v1.1.0
+
+Áudio por link sem artista obrigatório, SoundCloud com links de compartilhamento, organização em subpastas por gênero e telas separadas para cada tarefa. Veja os [instaladores e notas da release](https://github.com/rafabios/imd/releases/tag/v1.1.0).
+
 ## O que é o IMD
 
 O IMD roda no próprio computador e abre uma interface em `http://127.0.0.1:8765`. Ele recebe links ou listas de músicas, consulta informações públicas do Spotify, pesquisa as faixas no YouTube com `yt-dlp`, usa FFmpeg para processar o áudio e registra o histórico para evitar downloads repetidos.
 
 ### Principais recursos
 
-- atalhos para **Download Spotify**, **Download YouTube**, **Tagear Músicas** e **Pasta de Músicas**;
+- atalhos separados para **Baixar áudio**, **Download YouTube**, **Download Spotify** e **Download SoundCloud**, além das ferramentas da biblioteca;
 - importação de Google Sheets, CSV, TXT e XLSX;
 - pré-visualização e seleção das faixas antes do download, incluindo todas as linhas, linhas filtradas ou números e intervalos específicos;
 - acompanhamento de tarefas e logs em tempo real;
@@ -68,6 +72,18 @@ open "/Applications/IMD.app"
 ```
 
 Não é necessário desativar o Gatekeeper globalmente. O aplicativo inclui Python, dependências e FFmpeg; configurações ficam em `~/Library/Application Support/IMD Insane Music Downloader`.
+
+## Áudio de vozes e samples
+
+A tela **Baixar áudio** recebe diretamente um link do YouTube. Cole o link de um vídeo individual, escolha WAV, FLAC, MP3 ou M4A e confira a pasta de destino. O nome é obtido do vídeo; você pode informar outro nome, sem preencher artista ou música. O identificador do vídeo é incluído no arquivo para evitar colisões entre títulos iguais.
+
+Esse modo baixa o áudio completo, sem separar vocais ou recortar trechos. Converter para WAV não recupera qualidade ausente na fonte. O campo **Gênero / categoria** organiza o arquivo em uma subpasta do destino. Spotify tem uma tela própria com playlist/artista e busca musical; planilhas e arquivos ficam em **Baixar listas**. A navegação mostra uma área por vez e os logs de download ficam em **Detalhes técnicos**.
+
+## Download SoundCloud
+
+Use o botão **Download SoundCloud** e cole o link completo de uma faixa (`https://soundcloud.com/artista/faixa`). Escolha formato e pasta; o gênero/categoria opcional cria uma subpasta. Não é necessário preencher artista ou título. O módulo usa a faixa indicada diretamente, sem pesquisar no YouTube, e compartilha a fila e o cancelamento com os demais downloads.
+
+Links curtos de compartilhamento (`on.soundcloud.com`) também são aceitos. Nesta versão, perfis e playlists não são aceitos. A disponibilidade depende do acesso à faixa no SoundCloud.
 
 ## Primeiros passos
 

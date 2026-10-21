@@ -184,3 +184,12 @@ def test_macos_dmg_includes_unlock_instructions():
     assert "Abrir Mesmo Assim" in instructions
     assert "xattr -dr com.apple.quarantine" in instructions
     assert "desativar o Gatekeeper globalmente" in instructions
+
+
+
+def test_release_versions_follow_tag_on_both_platforms():
+    for name in ("build-msi.yml", "build-macos.yml"):
+        source = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        assert "Set version from release tag" in source
+        assert 'PRODUCT_VERSION={tag[1:]}' in source
+        assert "PRODUCT_VERSION: 0.1." not in source

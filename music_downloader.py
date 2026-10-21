@@ -1848,6 +1848,44 @@ def run_conversion_mode() -> Dict[str, int]:
 # =========================
 # Main
 # =========================
+def download_audio_url(url: str, audio_format: str, destination: str, name: str = "") -> None:
+    """Download an exact source without music matching or invented artist tags."""
+    folder = os.path.abspath(os.path.expanduser(destination or MUSIC_DIR))
+    os.makedirs(folder, exist_ok=True)
+    base = safe_name(name).replace("%", "%%") if name else "%(title).160B"
+    opts = yt_dlp_opts(folder, base + " [%(id)s]")
+    opts.update({
+        "format": "bestaudio/best",
+        "extract_flat": False,
+        "ignoreerrors": False,
+        "noplaylist": True,
+        "overwrites": False,
+        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": audio_format,
+                            "preferredquality": str(QUALITY_AUDIO)}],
+        "progress_hooks": [],
+    })
+    completed = []
+    def record_output(event):
+        if event.get("status") == "finished":
+            path = (event.get("info_dict") or {}).get("filepath")
+            if path and os.path.isfile(path):
+                completed.append(path)
+    opts["postprocessor_hooks"] = [record_output]
+    log(f"Baixando áudio do link em {audio_format.upper()} para {folder}")
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+    if not info or info.get("_type") in {"playlist", "multi_video"}:
+        raise RuntimeError("Use um link de áudio individual.")
+    hist = load_history()
+    for path in set(completed):
+        if not os.path.isfile(path):
+            continue
+        hist.add(f"FILE:{os.path.basename(path)}")
+        log(f"Áudio salvo: {path}")
+    save_history(hist)
+    log(f"Concluído. Destino: {folder}")
+
+
 def main():
     ensure_runtime_dirs()
     parser = argparse.ArgumentParser(description="Spotify embed playlist index + yt-dlp downloader")
@@ -1860,7 +1898,14 @@ def main():
     parser.add_argument("--only-url", default=None, help="Processa apenas uma URL Spotify informada")
     parser.add_argument("--input-file", default=None, help="CSV local para processar no lugar da planilha do config")
     parser.add_argument("--conversion-only", dest="conversion_only", action=argparse.BooleanOptionalAction, default=None, help="Executa apenas a conversao de arquivos de audio")
+    parser.add_argument("--audio-url")
+    parser.add_argument("--audio-format", choices=["wav", "mp3", "flac", "m4a"], default="wav")
+    parser.add_argument("--audio-destination", default="")
+    parser.add_argument("--audio-name", default="")
     args, _ = parser.parse_known_args()
+    if args.audio_url:
+        download_audio_url(args.audio_url, args.audio_format, args.audio_destination, args.audio_name)
+        return
     reescan_list = config_bool("execution.reescan_list", False) if args.reescan_list is None else args.reescan_list
     dry_run = config_bool("execution.dry_run", False) if args.dry_run is None else args.dry_run
     tagmusic = config_bool("execution.tagmusic", False) if args.tagmusic is None else args.tagmusic

@@ -6,7 +6,7 @@ on:
       release_tag:
         description: "Tag da release a publicar quando rodar manualmente"
         required: true
-        default: "v0.1.0"
+        default: "v1.1.0"
       publish_release:
         description: "Publicar os DMGs no GitHub Releases"
         required: true
@@ -20,7 +20,6 @@ permissions:
   contents: write
 
 env:
-  PRODUCT_VERSION: 0.1.${{ github.run_number }}
   PYTHON_VERSION: "3.12"
 
 jobs:
@@ -50,6 +49,18 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-macos.txt
+
+      - name: Set version from release tag
+        shell: python {0}
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          import os, re
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+              raise SystemExit("Release tag must use vMAJOR.MINOR.PATCH")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              output.write(f"PRODUCT_VERSION={tag[1:]}\n")
 
       - name: Install Python dependencies
         run: |

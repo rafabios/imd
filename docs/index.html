@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="IMD Insane Music Downloader: painel local para baixar, converter e organizar musicas a partir de listas e planilhas." />
+    <meta name="description" content="IMD Insane Music Downloader: YouTube, Spotify e SoundCloud em um painel local para baixar áudios, vozes e músicas e organizar por gênero." />
     <meta property="og:title" content="IMD Insane Music Downloader" />
     <meta property="og:description" content="Um instalador simples para abrir um painel local de download, conversao e organizacao de musicas." />
     <meta property="og:type" content="website" />
@@ -40,11 +40,11 @@
           <a class="version-pill" href="https://github.com/rafabios/imd/releases/latest" aria-label="Abrir a versão mais recente no GitHub">
             <span class="version-dot" aria-hidden="true"></span>
             <span>Versão mais recente</span>
-            <strong data-latest-version>v0.1.7</strong>
+            <strong data-latest-version>v1.1.0</strong>
           </a>
           <h1>IMD Insane Music Downloader</h1>
           <p class="hero-copy">
-            Baixe, converta, revise e organize musicas com uma interface simples no navegador, sem precisar mexer em terminal.
+            Baixe músicas e áudios do YouTube e SoundCloud, importe playlists do Spotify e organize tudo por gênero. Cada tarefa tem sua própria tela, sem precisar mexer em terminal.
           </p>
           <div class="hero-actions">
             <a class="primary-button" href="#download">Ver downloads</a>
@@ -67,8 +67,8 @@
           </article>
           <article class="feature-card">
             <span class="feature-icon">02</span>
-            <h3>Download guiado</h3>
-            <p>Rode downloads com reescan, modo teste, logs em tempo real e fila em background.</p>
+            <h3>Áudio, YouTube, Spotify e SoundCloud</h3>
+            <p>Botões separados para cada tarefa. Cole um link para baixar áudio sem preencher artista ou música.</p>
           </article>
           <article class="feature-card">
             <span class="feature-icon">03</span>
@@ -293,7 +293,7 @@
           <article class="manual-card manual-card-wide">
             <span class="manual-number">11</span>
             <h3>Use o painel</h3>
-            <p>O navegador abre em <code>127.0.0.1:8765</code>. Use os botoes <strong>Download Spotify</strong> ou <strong>Download YouTube</strong>.</p>
+            <p>O navegador abre em <code>127.0.0.1:8765</code>. Escolha <strong>Baixar áudio</strong>, <strong>Download YouTube</strong>, <strong>Download Spotify</strong> ou <strong>Download SoundCloud</strong>.</p>
             <figure class="manual-shot">
               <img src="assets/13.png" alt="Painel local do IMD aberto no navegador com opcoes de download" loading="lazy" />
             </figure>
@@ -309,6 +309,21 @@
             <li>Copie o link do navegador, cole no IMD e clique em <strong>Salvar</strong>. O formato CSV e ajustado automaticamente.</li>
           </ol>
         </div>
+      </section>
+
+      <section id="audio-guide" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Novidades da v1.1.0</p>
+          <h2>Escolha o botão e comece</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card"><h3>Baixar áudio</h3><p>Cole o link de um vídeo do YouTube. O título vem automaticamente; artista não é obrigatório. Ideal para falas e material de produção.</p></article>
+          <article class="feature-card"><h3>Download YouTube</h3><p>Pesquise uma música pelo artista e nome da faixa, em uma tela exclusiva.</p></article>
+          <article class="feature-card"><h3>Download Spotify</h3><p>Informe uma playlist ou artista. O Spotify fornece a lista de músicas; as fontes de áudio são localizadas no YouTube.</p></article>
+          <article class="feature-card"><h3>Download SoundCloud</h3><p>Cole o link de uma faixa, incluindo links curtos on.soundcloud.com. O áudio vem diretamente do SoundCloud. Perfis e playlists ainda não são aceitos.</p></article>
+        </div>
+        <p>Nos downloads por link, escolha WAV, FLAC, MP3 ou M4A e a pasta de destino. O campo <strong>Gênero / categoria</strong> cria uma subpasta, por exemplo <code>Samples/Vozes</code>. O áudio é baixado inteiro, sem recorte ou separação de vocais. Converter para WAV não recupera qualidade ausente na fonte.</p>
+        <p><a href="https://github.com/rafabios/imd/releases/tag/v1.1.0">Ver novidades e arquivos da v1.1.0</a></p>
       </section>
 
       <section id="download" class="section release-band">
@@ -344,7 +359,7 @@
           </a>
         </div>
         <p class="download-placeholder">
-          Versão atual: <a href="https://github.com/rafabios/imd/releases/latest"><strong data-latest-version>v0.1.7</strong></a>. Os botões sempre baixam os instaladores mais recentes publicados no GitHub Releases.
+          Versão atual: <a href="https://github.com/rafabios/imd/releases/latest"><strong data-latest-version>v1.1.0</strong></a>. Os botões sempre baixam os instaladores mais recentes publicados no GitHub Releases.
         </p>
       </section>
 
